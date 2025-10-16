@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.sqlite3
+*.log
+venv/
+.venv/
+.env
+.DS_Store
+
+# Django
+media/
+staticfiles/
+local_settings.py
+
+# Node (if you have frontend)
+node_modules/
+build/
+
+# IDEs
+.vscode/
+.idea/
+
+# Docker
+docker-compose.override.yml
