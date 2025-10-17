@@ -13,6 +13,7 @@ venv/
 # Django
 media/
 staticfiles/
+static/
 local_settings.py
 
 # Node (if you have frontend)
