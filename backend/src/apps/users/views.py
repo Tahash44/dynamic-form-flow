@@ -10,7 +10,7 @@ from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from backend.src.apps.users.serializers import LoginSerializer, RegisterSerializer, VerifyOTPSerializer
+from apps.users.serializers import LoginSerializer, RegisterSerializer, VerifyOTPSerializer
 
 import random
 
