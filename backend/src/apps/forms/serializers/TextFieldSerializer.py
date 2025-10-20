@@ -2,6 +2,7 @@ from rest_framework import serializers
 from .base_field_serializer import BaseFieldSerializer
 from ..models import FormTextField
 
+
 class TextFieldSerializer(BaseFieldSerializer):
     class Meta(BaseFieldSerializer.Meta):
         model = FormTextField

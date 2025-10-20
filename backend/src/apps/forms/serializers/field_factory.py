@@ -1,8 +1,9 @@
-from . import TextFieldSerializer
-from . import SelectFieldSerializer
-from . import CheckBoxFieldSerializer
-from . import NumberFieldSerializer
-from . import DateFieldSerializer
+from .TextFieldSerializer import TextFieldSerializer
+from .SelectFieldSerializer import SelectFieldSerializer
+from .CheckBoxFieldSerializer import CheckBoxFieldSerializer
+from .NumberFieldSerializer import NumberFieldSerializer
+from .DateFieldSerializer import DateFieldSerializer
+
 
 SERIALIZER_MAP = {
     'text': TextFieldSerializer,

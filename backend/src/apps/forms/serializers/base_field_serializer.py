@@ -2,12 +2,12 @@ from rest_framework import serializers
 from django.core.exceptions import ValidationError as DjangoValidationError
 from ..models import Field
 
+
 class BaseFieldSerializer(serializers.ModelSerializer):
     """
     Shared fields + read-only field_type detection.
     """
     field_type = serializers.SerializerMethodField(read_only=True)
-
     class Meta:
         model = Field
         fields = [

@@ -21,6 +21,12 @@ class FieldViewSet(viewsets.ModelViewSet):
             return DynamicFieldSerializer
         return BaseFieldSerializer
 
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        instance = serializer.save()
+        return Response(BaseFieldSerializer(instance).data, status=status.HTTP_201_CREATED)
+
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
         serializer = self.get_serializer(
