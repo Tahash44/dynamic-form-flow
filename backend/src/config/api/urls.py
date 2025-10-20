@@ -1,4 +1,5 @@
+from django.urls import path, include
 
-
-
-urlpatterns = []
+urlpatterns = [
+    path('forms/', include('apps.forms.urls')),
+]
