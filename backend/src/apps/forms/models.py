@@ -1,5 +1,30 @@
+from config.settings import AUTH_USER_MODEL
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.core.validators import MinValueValidator
+
+class Form(models.Model):
+    title = models.CharField(max_length=255)
+    created_by = models.ForeignKey(AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
+    is_active = models.BooleanField(default=False)
+    slug = models.SlugField(max_length=8, unique=True)
+
+
+
+
+class WelcomePage(models.Model):
+    title = models.CharField(max_length=255)
+    form = models.OneToOneField(Form, on_delete=models.CASCADE)
+    description = models.TextField()
+    entrance_button_text = models.CharField(max_length=50, blank=True)
+
+
+class FinalPage(models.Model):
+    text = models.TextField(null=False)
+    form = models.OneToOneField(Form, on_delete=models.CASCADE)
+
+
+
 
 
 class Field(models.Model):
