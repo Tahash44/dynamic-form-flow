@@ -83,6 +83,7 @@ class ForgotPasswordView(APIView):
     """
     Step 1: User requests password reset -> send OTP via email
     """
+    permission_classes = [AllowAny]
     def post(self, request):
         serializer = ForgotPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -111,6 +112,7 @@ class VerifyResetOTPView(APIView):
     """
     Step 2: Verify OTP (optional step, if you want to confirm before reset)
     """
+    permission_classes = [AllowAny]
     def post(self, request):
         serializer = VerifyResetOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -132,6 +134,7 @@ class ResetPasswordView(APIView):
     """
     Step 3: Reset password after verifying OTP
     """
+    permission_classes = [AllowAny]
     def post(self, request):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
