@@ -1,5 +1,5 @@
 # استفاده از نسخه سبک پایتون
-FROM python:3.11-slim
+FROM docker.arvancloud.ir/python:3.11-slim
 
 # تنظیم مسیر کاری
 WORKDIR /app
