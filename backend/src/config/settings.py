@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "drf_yasg",
+    'django_filters',
     'rest_framework_swagger',
     "config.api",
     "apps.users",
@@ -151,6 +152,8 @@ AUTH_PASSWORD_VALIDATORS = [
         "NAME": "django.contrib.auth.password_validation.NumericPasswordValidator",
     },
 ]
+
+AUTH_USER_MODEL = 'auth.User'
 
 
 # Internationalization
