@@ -1,5 +1,6 @@
 from django.urls import path
-from apps.users.views import (
+from rest_framework_simplejwt.views import TokenObtainPairView
+from .views import (
     ForgotPasswordView, 
     LoginView,
     ResetPasswordView, 
