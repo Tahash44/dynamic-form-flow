@@ -9,11 +9,8 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
-
-from apps.users.serializers import LoginSerializer, RegisterSerializer, VerifyOTPSerializer
-
 import random
-
+from .serializers import RegisterSerializer, LoginSerializer, VerifyOTPSerializer
 
 User = get_user_model()
 
@@ -25,18 +22,19 @@ class RegisterView(CreateAPIView):
 
 
 class LoginView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request):
-        serializer = LoginSerializer(data=request.data)        
+        serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         username = serializer.validated_data['username']
         password = serializer.validated_data['password']
-        
+
         user = authenticate(request, username=username, password=password)
 
         if not user:
             return Response({'error': 'Invalid username or password'}, status=status.HTTP_401_UNAUTHORIZED)
-        
+
         otp = random.randint(100000, 999999)
 
         cache.set(f'otp_{username}', otp, 300)
@@ -49,8 +47,9 @@ class LoginView(APIView):
         )
 
         return Response({"meesage": 'OTP sent to your mail'}, status=status.HTTP_200_OK)
-    
+
 class VerifyOTPView(APIView):
+    permission_classes = [AllowAny]
     def post(self, request):
         serializer = VerifyOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
