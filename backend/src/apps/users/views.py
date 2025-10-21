@@ -9,8 +9,10 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from .serializers import ForgotPasswordSerializer, LoginSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
+
 import random
-from .serializers import RegisterSerializer, LoginSerializer, VerifyOTPSerializer
 
 User = get_user_model()
 
@@ -48,6 +50,7 @@ class LoginView(APIView):
 
         return Response({"meesage": 'OTP sent to your mail'}, status=status.HTTP_200_OK)
 
+
 class VerifyOTPView(APIView):
     permission_classes = [AllowAny]
     def post(self, request):
@@ -76,5 +79,83 @@ class VerifyOTPView(APIView):
         return Response({'refresh': str(refresh), 'access': str(refresh.access_token)}, status=status.HTTP_200_OK)
     
 
+class ForgotPasswordView(APIView):
+    """
+    Step 1: User requests password reset -> send OTP via email
+    """
+    def post(self, request):
+        serializer = ForgotPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
 
+        email = serializer.validated_data["email"]
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "No account found with this email."}, status=404)
+
+        otp = random.randint(100000, 999999)
+        cache.set(f"reset_otp_{email}", otp, timeout=300)  # 5 minutes
+
+        send_mail(
+            subject="Password Reset OTP",
+            message=f"Your OTP for password reset is {otp}. It expires in 5 minutes.",
+            from_email="youremail@gmail.com",
+            recipient_list=[email],
+        )
+
+        return Response({"message": "OTP sent to your email."}, status=200)
+
+
+class VerifyResetOTPView(APIView):
+    """
+    Step 2: Verify OTP (optional step, if you want to confirm before reset)
+    """
+    def post(self, request):
+        serializer = VerifyResetOTPSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        otp = serializer.validated_data["otp"]
+
+        cached_otp = cache.get(f"reset_otp_{email}")
+        if not cached_otp:
+            return Response({"error": "OTP expired or invalid."}, status=400)
+
+        if str(cached_otp) != str(otp):
+            return Response({"error": "Incorrect OTP."}, status=400)
+
+        return Response({"message": "OTP verified successfully."}, status=200)
+
+
+class ResetPasswordView(APIView):
+    """
+    Step 3: Reset password after verifying OTP
+    """
+    def post(self, request):
+        serializer = ResetPasswordSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = serializer.validated_data["email"]
+        otp = serializer.validated_data["otp"]
+        new_password = serializer.validated_data["new_password"]
+
+        cached_otp = cache.get(f"reset_otp_{email}")
+        if not cached_otp:
+            return Response({"error": "OTP expired or invalid."}, status=400)
+
+        if str(cached_otp) != str(otp):
+            return Response({"error": "Incorrect OTP."}, status=400)
+
+        try:
+            user = User.objects.get(email=email)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=404)
+
+        user.set_password(new_password)
+        user.save()
+
+        cache.delete(f"reset_otp_{email}")
+
+        return Response({"message": "Password reset successful."}, status=200)
 
