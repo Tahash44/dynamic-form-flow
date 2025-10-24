@@ -2,7 +2,7 @@ from rest_framework import status, filters
 from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, ListCreateAPIView, \
     RetrieveUpdateDestroyAPIView
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
 
 from .models import Process, ProcessInstance, ProcessStep, StepSubmission
@@ -14,12 +14,12 @@ from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstan
 class ProcessListView(ListAPIView):
     queryset = Process.objects.filter(is_active=True, type=Process.SEQUENTIAL)
     serializer_class = ProcessSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
 
 class StartProcessView(CreateAPIView):
     serializer_class = ProcessInstanceSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         pk = self.kwargs.get('pk')
@@ -28,62 +28,80 @@ class StartProcessView(CreateAPIView):
         except Process.DoesNotExist:
             raise ValidationError({'detail': 'Process not found or inactive.'})
 
-        existing = ProcessInstance.objects.filter(
-            process=process, started_by=request.user, status='running'
-        ).first()
-        if existing:
-            raise ValidationError({'detail': 'Process already started.'})
+        if request.user.is_authenticated:
+            existing = ProcessInstance.objects.filter(
+                process=process,
+                started_by=request.user,
+                status='running'
+            ).first()
+            if existing:
+                raise ValidationError({'detail': 'Process already started.'})
 
-        instance = ProcessInstance.objects.create(process=process, started_by=request.user)
+        instance = ProcessInstance.objects.create(
+            process=process,
+            started_by=request.user if request.user.is_authenticated else None
+        )
         instance.start()
 
         serializer = self.get_serializer(instance)
         return Response(serializer.data, status=status.HTTP_201_CREATED)
 
-
 class CurrentStepView(RetrieveAPIView):
-    queryset = ProcessInstance.objects.all()
+    queryset = ProcessInstance.objects.select_related('current_step__form', 'process')
     serializer_class = ProcessStepSerializer
-    permission_classes = [IsAuthenticated]
-
-    def get_object(self):
-        instance = super().get_object()
-        if instance.started_by != self.request.user:
-            raise ValidationError({'detail': 'Access denied.'})
-        return instance
+    permission_classes = [AllowAny]
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        if not instance.current_step:
+        step = instance.current_step
+        if not step:
             return Response({'detail': 'Process completed.'})
-        data = self.get_serializer(instance.current_step).data
-        return Response(data)
 
+        form = step.form
+        if getattr(form, 'access', 'public') == 'private':
+            provided = request.query_params.get('password') or request.headers.get('X-Form-Password')
+            if provided != (getattr(form, 'password', '') or ''):
+                raise ValidationError({'detail': 'Form is private. Password required or incorrect.'})
+
+        return Response(self.get_serializer(step).data)
 
 class SubmitStepView(CreateAPIView):
     serializer_class = StepSubmissionSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
         instance_id = self.kwargs.get('pk')
-
-        try:
-            instance = ProcessInstance.objects.get(pk=instance_id, started_by=request.user)
-        except ProcessInstance.DoesNotExist:
+        instance = ProcessInstance.objects.filter(pk=instance_id).select_related('current_step__form', 'process').first()
+        if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
 
         step = instance.current_step
         if not step:
             raise ValidationError({'detail': 'Process already completed.'})
 
+        form = step.form
+        if getattr(form, 'access', 'public') == 'private':
+            provided = request.data.get('password') or request.headers.get('X-Form-Password')
+            if provided != (getattr(form, 'password', '') or ''):
+                raise ValidationError({'detail': 'Incorrect form password.'})
+
         form_response_id = request.data.get('form_response')
         if not form_response_id:
             raise ValidationError({'detail': 'form_response ID is required.'})
 
+        from apps.forms.models import Response as FormResponse
+        fr = FormResponse.objects.select_related('form', 'user').filter(pk=form_response_id).first()
+        if not fr:
+            raise ValidationError({'detail': 'form_response not found.'})
+        if fr.form_id != form.id:
+            raise ValidationError({'detail': 'form_response does not belong to the current step form.'})
+        if request.user.is_authenticated and fr.user_id != request.user.id:
+            raise ValidationError({'detail': 'form_response belongs to a different user.'})
+
         serializer = self.get_serializer(data={
             'instance': instance.id,
             'step': step.id,
-            'form_response': form_response_id,
+            'form_response': fr.id,
         })
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -103,7 +121,7 @@ class ProcessListCreateView(ListCreateAPIView):
         return ProcessWriteSerializer if self.request.method == 'POST' else ProcessSerializer
 
     def get_queryset(self):
-        return super().get_queryset()
+        return super().get_queryset().filter(owner__user=self.request.user)
 
 
 class ProcessRUDView(RetrieveUpdateDestroyAPIView):

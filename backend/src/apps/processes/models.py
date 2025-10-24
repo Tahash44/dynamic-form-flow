@@ -16,18 +16,9 @@ class Process(models.Model):
         (FREE_FLOW, 'Free flow'),
     ]
 
-    PUBLIC = 'public'
-    PRIVATE = 'private'
-    ACCESS_CHOICES = [
-        (PUBLIC, 'Public'),
-        (PRIVATE, 'Private (password)'),
-    ]
-
     owner = models.ForeignKey(Profile, on_delete=models.CASCADE, related_name='processes')
     title = models.CharField(max_length=255, default='')
     type = models.CharField(max_length=20, choices=TYPE_CHOICES, default=SEQUENTIAL)
-    access = models.CharField(max_length=10, choices=ACCESS_CHOICES, default=PUBLIC)
-    password = models.CharField(max_length=64, blank=True)
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
@@ -39,15 +30,6 @@ class Process(models.Model):
                 check=Q(access='public') | ~Q(password=''),
             ),
         ]
-
-    @property
-    def is_private(self) -> bool:
-        return self.access == self.PRIVATE
-
-    def clean(self):
-        from django.core.exceptions import ValidationError
-        if self.is_private and not (self.password or '').strip():
-            raise ValidationError({'password': 'Password is required when access is private.'})
     
     @property
     def is_sequential(self) -> bool:
