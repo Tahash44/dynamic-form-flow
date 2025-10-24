@@ -20,8 +20,16 @@ class Field(models.Model):
         ('number', 'عددی'),
         ('date', 'تاریخ'),
     ]
+    PUBLIC = 'public'
+    PRIVATE = 'private'
+    ACCESS_CHOICES = [
+        (PUBLIC, 'Public'),
+        (PRIVATE, 'Private (password)'),
+    ]
 
     form = models.ForeignKey(Form, related_name='fields', on_delete=models.CASCADE)
+    access = models.CharField(max_length=10, choices=ACCESS_CHOICES, default=PUBLIC)
+    password = models.CharField(max_length=64, blank=True)
     question = models.CharField(max_length=255)
     field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
     required = models.BooleanField(default=False)
