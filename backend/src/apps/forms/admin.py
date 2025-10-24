@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Form, Field
+from .models import Form, Field, Category
 
 
 class FieldInline(admin.TabularInline):
@@ -27,3 +27,8 @@ class FieldAdmin(admin.ModelAdmin):
     list_filter = ('field_type', 'required')
     search_fields = ('question',)
     ordering = ('form', 'position')
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    pass
