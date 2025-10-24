@@ -188,6 +188,11 @@ CACHES = {
     }
 }
 
+SIMPLE_JWT = {
+    "ROTATE_REFRESH_TOKENS": True,  
+    "BLACKLIST_AFTER_ROTATION": True
+}
+
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 EMAIL_HOST = env("EMAIL_HOST", default="localhost")
 EMAIL_PORT = env("EMAIL_PORT", default=25)

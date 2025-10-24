@@ -9,8 +9,9 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated
 
-from apps.users.serializers import ForgotPasswordSerializer, LoginSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
+from apps.users.serializers import ForgotPasswordSerializer, LoginSerializer, RefreshTokenSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
 
 import random
 
@@ -158,3 +159,22 @@ class ResetPasswordView(APIView):
 
         return Response({"message": "Password reset successful."}, status=200)
 
+
+class RefreshTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        seriazlier = RefreshTokenSerializer(data=request.data)
+        seriazlier.is_valid(raise_exception=True)
+
+        refresh_token = seriazlier.validated_data['refresh']
+
+        try:
+            old_token = RefreshToken(refresh_token)
+            access_token = str(old_token.access_token)
+            new_refresh = RefreshToken.for_user(old_token.user)
+            return Response({
+                'refresh': new_refresh,
+                'access': access_token
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_401_UNAUTHORIZED)

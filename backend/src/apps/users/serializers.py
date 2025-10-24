@@ -51,3 +51,7 @@ class ResetPasswordSerializer(serializers.Serializer):
         if not User.objects.filter(email=value).exists():
             raise serializers.ValidationError('No user with this email.')
         return value
+    
+
+class RefreshTokenSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
