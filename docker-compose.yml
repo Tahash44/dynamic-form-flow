@@ -5,10 +5,13 @@ services:
     command: python manage.py runserver 0.0.0.0:8000
     volumes:
       - ./backend/src:/app
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     depends_on:
       - db
+      - redis
     environment:
       - DEBUG=1
       - DJANGO_DB_HOST=db
@@ -30,7 +33,16 @@ services:
     ports:
       - "5432:5432"
 
+  redis:
+    image: redis:7
+    container_name: redis_cache
+    restart: always
+    ports:
+      - "6379:6379"
+
+
 
 volumes:
   postgres_data:
+
 
