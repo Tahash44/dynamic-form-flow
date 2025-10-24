@@ -55,3 +55,9 @@ class ResetPasswordSerializer(serializers.Serializer):
 
 class RefreshTokenSerializer(serializers.Serializer):
     refresh = serializers.CharField()
+
+
+class ProfileSerializer(serializers.Serializer):
+    username = serializers.CharField(source='user.username')
+    email = serializers.CharField(source='user.email')
+    bio = serializers.CharField(required=False)
