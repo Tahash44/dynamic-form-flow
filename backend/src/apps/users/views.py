@@ -15,7 +15,7 @@ from apps.users.serializers import ForgotPasswordSerializer, LoginSerializer, Pr
 
 import random
 
-from backend.src.apps.users.models import Profile
+from apps.users.models import Profile
 
 User = get_user_model()
 
@@ -46,7 +46,7 @@ class LoginView(APIView):
 
         send_mail(
             subject='Your Login OTP',
-            message=f'Hello {user.username},\n\nYour OTP for login is {otp}. It expires in 5 minutes.\n\nBest,\nYour App Team',
+            message=f'Hello {user.username},\n\nYour OTP for login is {otp}. It expires in 5 minutes.\n\nBest,\nDjango Form Flow',
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email]
         )
@@ -103,7 +103,7 @@ class ForgotPasswordView(APIView):
         send_mail(
             subject="Password Reset OTP",
             message=f"Your OTP for password reset is {otp}. It expires in 5 minutes.",
-            from_email="youremail@gmail.com",
+            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
         )
 
