@@ -1,8 +1,11 @@
+import secrets
+
 from django.db import models
 from django.db.models import Q
 from django.core.validators import MinValueValidator
 from django.conf import settings
 from django.utils import timezone
+from datetime import timedelta
 
 from apps.forms.models import Form
 from apps.users.models import Profile
@@ -90,12 +93,8 @@ class ProcessInstance(models.Model):
     current_step = models.ForeignKey('ProcessStep', on_delete=models.SET_NULL,null=True, blank=True,related_name='current_instances')
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-
-    class Meta:
-        ordering = ['-started_at']
-        indexes = [
-            models.Index(fields=['process', 'status'], name='idx_procinst_proc_status'),
-        ]
+    access_token = models.CharField(max_length=128, null=True, blank=True, db_index=True, unique=True)
+    access_token_expires_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
         return f'Instance #{self.pk} of {self.process}'
@@ -133,6 +132,31 @@ class ProcessInstance(models.Model):
                 self.current_step = None
                 self.save(update_fields=['current_step'])
             self.mark_completed_if_done()
+
+    def issue_guest_token(self, ttl_hours: int = 24, force: bool = False):
+        if self.started_by_id and not force:
+            return
+
+        if self.access_token and not force:
+            return
+
+        self.access_token = secrets.token_urlsafe(48)
+        self.access_token_expires_at = timezone.now() + timedelta(hours=ttl_hours)
+        self.save(update_fields=['access_token', 'access_token_expires_at'])
+
+
+    class Meta:
+        ordering = ['-started_at']
+        indexes = [
+            models.Index(fields=['process', 'status'], name='idx_procinst_proc_status'),
+            models.Index(fields=['access_token'], name='idx_procinst_token'),
+        ]
+        constraints = [
+            models.CheckConstraint(
+                name='guest_token_only_for_guest',
+                check=Q(started_by__isnull=True) | Q(access_token__isnull=True),
+            ),
+        ]
 
 
 class StepSubmission(models.Model):

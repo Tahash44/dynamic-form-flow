@@ -4,14 +4,14 @@ from .models import Process, ProcessStep, ProcessInstance, StepSubmission
 
 @admin.register(Process)
 class ProcessAdmin(admin.ModelAdmin):
-    list_display = ('id', 'title', 'owner', 'type', 'access', 'is_active', 'created_at')
-    list_filter = ('type', 'access', 'is_active')
+    list_display = ('id', 'title', 'owner', 'type', 'is_active', 'created_at')
+    list_filter = ('type', 'is_active')
     search_fields = ('title', 'owner__user__username')
     ordering = ('-created_at',)
     readonly_fields = ('created_at',)
     fieldsets = (
         (None, {
-            'fields': ('title', 'owner', 'type', 'access', 'password', 'is_active')
+            'fields': ('title', 'owner', 'type', 'is_active')
         }),
         ('Timestamps', {
             'fields': ('created_at',),

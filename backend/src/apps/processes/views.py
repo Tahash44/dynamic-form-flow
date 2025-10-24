@@ -1,3 +1,4 @@
+from django.utils import timezone
 from rest_framework import status, filters
 from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, ListCreateAPIView, \
     RetrieveUpdateDestroyAPIView
@@ -17,6 +18,28 @@ class ProcessListView(ListAPIView):
     permission_classes = [AllowAny]
 
 
+def get_instance_token_from_request(request):
+    return (
+        request.headers.get('X-Instance-Token')
+        or request.query_params.get('token')
+        or request.data.get('token')
+    )
+
+def require_guest_token_if_needed(request, instance):
+    if instance.started_by_id:
+        return
+
+    token = get_instance_token_from_request(request)
+    if not token:
+        raise ValidationError({'detail': 'Guest instance token is required.'})
+
+    if token != (instance.access_token or ''):
+        raise ValidationError({'detail': 'Invalid guest token.'})
+
+    if instance.access_token_expires_at and timezone.now() > instance.access_token_expires_at:
+        raise ValidationError({'detail': 'Guest token expired.'})
+
+
 class StartProcessView(CreateAPIView):
     serializer_class = ProcessInstanceSerializer
     permission_classes = [AllowAny]
@@ -30,9 +53,7 @@ class StartProcessView(CreateAPIView):
 
         if request.user.is_authenticated:
             existing = ProcessInstance.objects.filter(
-                process=process,
-                started_by=request.user,
-                status='running'
+                process=process, started_by=request.user, status='running'
             ).first()
             if existing:
                 raise ValidationError({'detail': 'Process already started.'})
@@ -43,8 +64,15 @@ class StartProcessView(CreateAPIView):
         )
         instance.start()
 
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
+        access_token = None
+        if not request.user.is_authenticated:
+            instance.issue_guest_token()
+            access_token = instance.access_token
+
+        data = self.get_serializer(instance).data
+        if access_token:
+            return Response({'instance': data, 'access_token': access_token}, status=status.HTTP_201_CREATED)
+        return Response(data, status=status.HTTP_201_CREATED)
 
 class CurrentStepView(RetrieveAPIView):
     queryset = ProcessInstance.objects.select_related('current_step__form', 'process')
@@ -53,6 +81,8 @@ class CurrentStepView(RetrieveAPIView):
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
+        require_guest_token_if_needed(request, instance)
+
         step = instance.current_step
         if not step:
             return Response({'detail': 'Process completed.'})
@@ -65,15 +95,17 @@ class CurrentStepView(RetrieveAPIView):
 
         return Response(self.get_serializer(step).data)
 
+
 class SubmitStepView(CreateAPIView):
     serializer_class = StepSubmissionSerializer
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        instance_id = self.kwargs.get('pk')
-        instance = ProcessInstance.objects.filter(pk=instance_id).select_related('current_step__form', 'process').first()
+        instance = ProcessInstance.objects.filter(pk=self.kwargs.get('pk')).select_related('current_step__form', 'process').first()
         if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
+
+        require_guest_token_if_needed(request, instance)
 
         step = instance.current_step
         if not step:
@@ -108,6 +140,7 @@ class SubmitStepView(CreateAPIView):
 
         instance.refresh_from_db()
         return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
+
 
 
 class ProcessListCreateView(ListCreateAPIView):
