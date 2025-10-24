@@ -12,10 +12,13 @@ class FieldInline(admin.TabularInline):
 @admin.register(Form)
 class FormAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_by', 'is_public', 'created_at')
-    list_filter = ('is_public', 'created_at')
+    list_filter = ('is_public', 'created_at', 'is_deleted')
     search_fields = ('name', 'description')
     inlines = [FieldInline]
     ordering = ('-created_at',)
+
+    def get_queryset(self, request):
+        return Form.all_objects.all()
 
 
 @admin.register(Field)

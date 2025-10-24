@@ -1,6 +1,12 @@
 from django.contrib.auth.models import User
 from django.db import models
 
+
+class NonDeletedObjects(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
+
+
 class Form(models.Model):
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
@@ -8,9 +14,15 @@ class Form(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField(max_length=8, unique=True)
+    # Fields about deleting the object
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(blank=True, null=True)
+    objects = NonDeletedObjects()
+    all_objects = models.Manager()
 
     def __str__(self):
         return self.name
+
 
 class Field(models.Model):
     FIELD_TYPES = [
@@ -34,10 +46,12 @@ class Field(models.Model):
     def __str__(self):
         return f"{self.question} ({self.field_type})"
 
+
 class Response(models.Model):
     form = models.ForeignKey(Form, on_delete=models.CASCADE)
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
+
 
 class Answer(models.Model):
     response = models.ForeignKey(Response, related_name='answers', on_delete=models.CASCADE)
