@@ -4,7 +4,7 @@ from django.core.mail import send_mail
 from django.conf import settings
 
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
@@ -195,16 +195,12 @@ class LogoutView(APIView):
         try:
             token = RefreshToken(refresh_token)
             token.blacklist()
-            return Response(status=status.HTTP_205_RESET_CONTENT)
+            return Response({'message': 'Logout Successfully.'}, status=status.HTTP_205_RESET_CONTENT)
         except Exception:
             return Response(status=status.HTTP_400_BAD_REQUEST)
 
 
-class ProfileView(APIView):
+class ProfileDetailView(RetrieveUpdateAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
     permission_classes = [IsAuthenticated]
-
-    def get(self, request):
-        user = request.user
-        profile = Profile.objects.get(user=user)
-        serializer = ProfileSerializer(profile)
-        return Response(data=serializer.data, status=status.HTTP_200_OK)
