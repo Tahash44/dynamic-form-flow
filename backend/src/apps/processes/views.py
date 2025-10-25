@@ -88,7 +88,7 @@ class StartProcessView(CreateAPIView):
 class CurrentStepView(RetrieveAPIView):
     throttle_classes = [ScopedRateThrottle]
     throttle_scope = 'current_step'
-    queryset = ProcessInstance.objects.select_related('current_step__form', 'process').only('current_step__form__password', 'current_step__form__access')
+    queryset = ProcessInstance.objects.select_related('current_step__form', 'process')
     serializer_class = ProcessStepSerializer
     permission_classes = [AllowAny]
 
