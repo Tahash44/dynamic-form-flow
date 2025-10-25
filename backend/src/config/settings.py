@@ -13,6 +13,7 @@ import os
 from pathlib import Path
 from decouple import config
 import environ
+from datetime import timedelta
 
 
 env = environ.Env()
@@ -44,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
+    'rest_framework_simplejwt.token_blacklist',
     "drf_yasg",
     'django_filters',
     'rest_framework_swagger',
@@ -186,6 +188,13 @@ CACHES = {
             "CLIENT_CLASS": "django_redis.client.DefaultClient",
         }
     }
+}
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,  
+    "BLACKLIST_AFTER_ROTATION": True
 }
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
