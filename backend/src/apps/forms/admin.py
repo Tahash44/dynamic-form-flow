@@ -1,5 +1,6 @@
 from django.contrib import admin
-from .models import Form, Field, Category
+from .models import Form, Field
+from ..categories.models import FormCategory
 
 
 class FieldInline(admin.TabularInline):
@@ -29,6 +30,6 @@ class FieldAdmin(admin.ModelAdmin):
     ordering = ('form', 'position')
 
 
-@admin.register(Category)
+@admin.register(FormCategory)
 class CategoryAdmin(admin.ModelAdmin):
     pass

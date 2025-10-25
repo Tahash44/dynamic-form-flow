@@ -60,10 +60,4 @@ class Answer(models.Model):
     value = models.TextField()
 
 
-class Category(models.Model):
-    user = models.ForeignKey(User, on_delete=models.CASCADE)
-    name = models.CharField(max_length=255)
-    forms = models.ManyToManyField(Form, related_name='categories')
 
-    class Meta:
-        unique_together = ('user', 'name')
