@@ -11,6 +11,12 @@ from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
     ProcessWriteSerializer, ProcessStepWriteSerializer
 
+from .serializers import (
+    FreeFlowProcessSerializer,
+    FreeFlowProcessWriteSerializer,
+    #FreeFlowStepWriteSerializer,
+)
+
 
 class ProcessListView(ListAPIView):
     queryset = Process.objects.filter(is_active=True, type=Process.SEQUENTIAL)
@@ -176,7 +182,7 @@ class StepListCreateView(ListCreateAPIView):
 
     def perform_create(self, serializer):
         process = Process.objects.get(pk=self.kwargs['process_id'], type=Process.SEQUENTIAL)
-        self.check_object_permissions(self.request, process)  # IsOwnerOrReadOnly روی process
+        self.check_object_permissions(self.request, process)
         serializer.save(process=process)
 
 
@@ -186,3 +192,109 @@ class StepRUDView(RetrieveUpdateDestroyAPIView):
 
     def get_serializer_class(self):
         return ProcessStepWriteSerializer if self.request.method in ('PUT', 'PATCH') else ProcessStepSerializer
+    
+
+#--------------
+
+class FreeFlowProcessListCreateView(ListCreateAPIView):
+    queryset = Process.objects.filter(type=Process.FREE_FLOW)
+    permission_classes = [IsAuthenticated]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title']
+    ordering_fields = ['created_at', 'title']
+
+    def get_serializer_class(self):
+        return FreeFlowProcessWriteSerializer if self.request.method == 'POST' else FreeFlowProcessSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().filter(owner__user=self.request.user)
+
+
+class FreeFlowStartProcessView(CreateAPIView):
+    serializer_class = ProcessInstanceSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        pk = self.kwargs.get('pk')
+        try:
+            process = Process.objects.get(pk=pk, is_active=True, type=Process.FREE_FLOW)
+        except Process.DoesNotExist:
+            raise ValidationError({'detail': 'Free-flow process not found or inactive.'})
+
+        if request.user.is_authenticated:
+            existing = ProcessInstance.objects.filter(
+                process=process, started_by=request.user, status='running'
+            ).first()
+            if existing:
+                raise ValidationError({'detail': 'Process already started.'})
+
+        instance = ProcessInstance.objects.create(
+            process=process,
+            started_by=request.user if request.user.is_authenticated else None
+        )
+
+        access_token = None
+        if not request.user.is_authenticated:
+            instance.issue_guest_token()
+            access_token = instance.access_token
+
+        data = self.get_serializer(instance).data
+        if access_token:
+            return Response({'instance': data, 'access_token': access_token}, status=status.HTTP_201_CREATED)
+        return Response(data, status=status.HTTP_201_CREATED)
+
+
+class FreeFlowSubmitStepView(CreateAPIView):
+    serializer_class = StepSubmissionSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        instance = ProcessInstance.objects.filter(pk=self.kwargs.get('pk')).select_related('process').first()
+        if not instance:
+            raise ValidationError({'detail': 'Instance not found.'})
+
+        if instance.process.type != Process.FREE_FLOW:
+            raise ValidationError({'detail': 'Instance is not a free-flow process.'})
+
+        require_guest_token_if_needed(request, instance)
+
+        step_id = request.data.get('step') or request.data.get('step_id')
+        if not step_id:
+            raise ValidationError({'detail': 'step id is required.'})
+
+        step = ProcessStep.objects.filter(pk=step_id, process=instance.process).first()
+        if not step:
+            raise ValidationError({'detail': 'Step not found or does not belong to the process.'})
+
+        form = step.form
+        if getattr(form, 'access', 'public') == 'private':
+            provided = request.data.get('password') or request.headers.get('X-Form-Password')
+            if provided != (getattr(form, 'password', '') or ''):
+                raise ValidationError({'detail': 'Incorrect form password.'})
+
+        form_response_id = request.data.get('form_response')
+        if not form_response_id:
+            raise ValidationError({'detail': 'form_response ID is required.'})
+
+        from apps.forms.models import Response as FormResponse
+        fr = FormResponse.objects.select_related('form', 'user').filter(pk=form_response_id).first()
+        if not fr:
+            raise ValidationError({'detail': 'form_response not found.'})
+        if fr.form_id != form.id:
+            raise ValidationError({'detail': 'form_response does not belong to the step form.'})
+        if request.user.is_authenticated and fr.user_id != request.user.id:
+            raise ValidationError({'detail': 'form_response belongs to a different user.'})
+
+        serializer = self.get_serializer(data={
+            'instance': instance.id,
+            'step': step.id,
+            'form_response': fr.id,
+        })
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+
+        instance.refresh_from_db()
+        instance.mark_completed_if_done()
+
+        return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
+
