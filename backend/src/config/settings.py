@@ -188,6 +188,8 @@ CACHES = {
     }
 }
 
+CACHE_TTL = 60 * 5
+
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 EMAIL_HOST = env("EMAIL_HOST", default="localhost")
 EMAIL_PORT = env("EMAIL_PORT", default=25)

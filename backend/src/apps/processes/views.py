@@ -1,4 +1,5 @@
 from django.utils import timezone
+from django.core.cache import cache
 from rest_framework import status, filters
 from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, ListCreateAPIView, \
     RetrieveUpdateDestroyAPIView, UpdateAPIView
@@ -11,7 +12,11 @@ from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
     ProcessWriteSerializer, ProcessStepWriteSerializer
 
+from django.utils.decorators import method_decorator
+from django.views.decorators.cache import cache_page
 
+
+@method_decorator(cache_page(60 * 5), name='dispatch')
 class ProcessListView(ListAPIView):
     queryset = Process.objects.filter(is_active=True, type=Process.SEQUENTIAL)
     serializer_class = ProcessSerializer
@@ -86,6 +91,11 @@ class CurrentStepView(RetrieveAPIView):
         instance = self.get_object()
         require_guest_token_if_needed(request, instance)
 
+        cache_key = f'current_step_{instance.id}'
+        data = cache.get(cache_key)
+        if data:
+            return Response(data)
+
         step = instance.current_step
         if not step:
             return Response({'detail': 'Process completed.'})
@@ -96,7 +106,9 @@ class CurrentStepView(RetrieveAPIView):
             if provided != (getattr(form, 'password', '') or ''):
                 raise ValidationError({'detail': 'Form is private. Password required or incorrect.'})
 
-        return Response(self.get_serializer(step).data)
+        data = self.get_serializer(step).data
+        cache.set(cache_key, data, 10)
+        return Response(data)
 
 
 class SubmitStepView(CreateAPIView):
@@ -160,6 +172,7 @@ class ProcessListCreateView(ListCreateAPIView):
         return super().get_queryset().filter(owner__user=self.request.user)
 
 
+@method_decorator(cache_page(60 * 10), name='get')
 class ProcessRUDView(RetrieveUpdateDestroyAPIView):
     queryset = Process.objects.filter(type=Process.SEQUENTIAL)
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
@@ -216,6 +229,7 @@ class CloseProcessView(UpdateAPIView):
         process = self.get_object()
         process.is_active = False
         process.save(update_fields=['is_active'])
+        cache.delete_pattern('views.decorators.cache.cache_page.*')
         return Response({
             'detail': 'Process closed successfully.',
             'process': ProcessSerializer(process).data
