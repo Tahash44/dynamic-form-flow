@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
-from apps.users.models import Profile
+from .models import Profile
 
 User = get_user_model()
 

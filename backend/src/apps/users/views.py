@@ -11,11 +11,11 @@ from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from rest_framework.permissions import IsAuthenticated
 
-from apps.users.serializers import ForgotPasswordSerializer, LoginSerializer, ProfileSerializer, RefreshTokenSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
+from .serializers import ForgotPasswordSerializer, LoginSerializer, ProfileSerializer, RefreshTokenSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
 
 import random
 
-from apps.users.models import Profile
+from .models import Profile
 
 User = get_user_model()
 
@@ -173,13 +173,12 @@ class RefreshTokenView(APIView):
         seriazlier.is_valid(raise_exception=True)
 
         refresh_token = seriazlier.validated_data['refresh']
-
         try:
             old_token = RefreshToken(refresh_token)
             access_token = str(old_token.access_token)
-            new_refresh = RefreshToken.for_user(old_token.user)
+            new_refresh = RefreshToken.for_user(request.user)
             return Response({
-                'refresh': new_refresh,
+                'refresh': str(new_refresh),
                 'access': access_token
             }, status=status.HTTP_200_OK)
         except Exception as e:
