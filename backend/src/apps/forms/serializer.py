@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Form, Field, Category
+from .models import Form, Field
 
 
 class FieldSerializer(serializers.ModelSerializer):
@@ -26,21 +26,3 @@ class FormSerializer(serializers.ModelSerializer):
             for category in obj.categories.all()
         ]
 
-
-class CategorySerializer(serializers.ModelSerializer):
-    forms = serializers.PrimaryKeyRelatedField(
-        many=True,
-        queryset=Form.objects.all()
-    )
-
-    class Meta:
-        model = Category
-        fields = ['id', 'name', 'forms']
-    def get_forms(self, obj):
-        return [
-            {
-                'id': form.id,
-                'name': form.name,
-            }
-            for form in obj.forms.all()
-        ]
