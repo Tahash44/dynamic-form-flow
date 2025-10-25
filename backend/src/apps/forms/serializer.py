@@ -28,12 +28,14 @@ class FormSerializer(serializers.ModelSerializer):
 
 
 class CategorySerializer(serializers.ModelSerializer):
-    forms = serializers.SerializerMethodField()
+    forms = serializers.PrimaryKeyRelatedField(
+        many=True,
+        queryset=Form.objects.all()
+    )
 
     class Meta:
         model = Category
         fields = ['id', 'name', 'forms']
-
     def get_forms(self, obj):
         return [
             {
