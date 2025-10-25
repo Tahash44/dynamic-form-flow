@@ -6,6 +6,7 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView,
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
+from rest_framework.throttling import ScopedRateThrottle
 
 from .models import Process, ProcessInstance, ProcessStep
 from .permissions import IsOwnerOrReadOnly
@@ -49,6 +50,8 @@ def require_guest_token_if_needed(request, instance):
 
 
 class StartProcessView(CreateAPIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'start_process'
     serializer_class = ProcessInstanceSerializer
     permission_classes = [AllowAny]
 
@@ -83,6 +86,8 @@ class StartProcessView(CreateAPIView):
         return Response(data, status=status.HTTP_201_CREATED)
 
 class CurrentStepView(RetrieveAPIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'current_step'
     queryset = ProcessInstance.objects.select_related('current_step__form', 'process').only('current_step__form__password', 'current_step__form__access')
     serializer_class = ProcessStepSerializer
     permission_classes = [AllowAny]
@@ -112,6 +117,8 @@ class CurrentStepView(RetrieveAPIView):
 
 
 class SubmitStepView(CreateAPIView):
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'submit_step'
     serializer_class = StepSubmissionSerializer
     permission_classes = [AllowAny]
 

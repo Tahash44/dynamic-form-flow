@@ -72,6 +72,21 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
+
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+
+    'DEFAULT_THROTTLE_RATES': {
+        'start_process': '5/minute',
+        'current_step': '25/minute',
+        'submit_step': '25/minute',
+
+        'user': '100/minute',
+        'anon': '60/minute',
+    },
 }
 
 #Celery Redis
