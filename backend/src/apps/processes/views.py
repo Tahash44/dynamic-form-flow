@@ -1,12 +1,12 @@
 from django.utils import timezone
 from rest_framework import status, filters
 from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, ListCreateAPIView, \
-    RetrieveUpdateDestroyAPIView
+    RetrieveUpdateDestroyAPIView, UpdateAPIView
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
 
-from .models import Process, ProcessInstance, ProcessStep, StepSubmission
+from .models import Process, ProcessInstance, ProcessStep
 from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
     ProcessWriteSerializer, ProcessStepWriteSerializer
@@ -16,6 +16,9 @@ class ProcessListView(ListAPIView):
     queryset = Process.objects.filter(is_active=True, type=Process.SEQUENTIAL)
     serializer_class = ProcessSerializer
     permission_classes = [AllowAny]
+    filter_backends = [filters.SearchFilter, filters.OrderingFilter]
+    search_fields = ['title']
+    ordering_fields = ['created_at', 'title']
 
 
 def get_instance_token_from_request(request):
@@ -75,7 +78,7 @@ class StartProcessView(CreateAPIView):
         return Response(data, status=status.HTTP_201_CREATED)
 
 class CurrentStepView(RetrieveAPIView):
-    queryset = ProcessInstance.objects.select_related('current_step__form', 'process')
+    queryset = ProcessInstance.objects.select_related('current_step__form', 'process').only('current_step__form__password', 'current_step__form__access')
     serializer_class = ProcessStepSerializer
     permission_classes = [AllowAny]
 
@@ -164,6 +167,11 @@ class ProcessRUDView(RetrieveUpdateDestroyAPIView):
     def get_serializer_class(self):
         return ProcessWriteSerializer if self.request.method in ('PUT', 'PATCH') else ProcessSerializer
 
+    def perform_destroy(self, instance):
+        if instance.instances.exists():
+            raise ValidationError({'detail': 'Process cannot be deleted because instances exist.'})
+        instance.delete()
+
 
 class StepListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
@@ -186,3 +194,29 @@ class StepRUDView(RetrieveUpdateDestroyAPIView):
 
     def get_serializer_class(self):
         return ProcessStepWriteSerializer if self.request.method in ('PUT', 'PATCH') else ProcessStepSerializer
+
+    def perform_destroy(self, instance):
+        if instance.process.instances.exists():
+            raise ValidationError({'detail': 'Cannot delete step because process has running or completed instances.'})
+        instance.delete()
+
+    def perform_update(self, serializer):
+        process = serializer.instance.process
+        if process.instances.exists():
+            raise ValidationError({'detail': 'Cannot edit step because process already has instances.'})
+        serializer.save()
+
+
+class CloseProcessView(UpdateAPIView):
+    queryset = Process.objects.all()
+    permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    serializer_class = ProcessSerializer
+
+    def update(self, request, *args, **kwargs):
+        process = self.get_object()
+        process.is_active = False
+        process.save(update_fields=['is_active'])
+        return Response({
+            'detail': 'Process closed successfully.',
+            'process': ProcessSerializer(process).data
+        })
