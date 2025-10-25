@@ -13,7 +13,7 @@ import os
 from pathlib import Path
 from decouple import config
 import environ
-
+from datetime import timedelta
 
 env = environ.Env()
 
@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     "django.contrib.staticfiles",
     "rest_framework",
     "drf_yasg",
+    'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'rest_framework_swagger',
     "config.api",
@@ -188,6 +189,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True
+}
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
