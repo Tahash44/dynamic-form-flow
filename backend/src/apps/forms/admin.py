@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Form, Field
+from .models import Form, Field, Category
 
 
 class FieldInline(admin.TabularInline):
@@ -12,10 +12,13 @@ class FieldInline(admin.TabularInline):
 @admin.register(Form)
 class FormAdmin(admin.ModelAdmin):
     list_display = ('name', 'created_by', 'is_public', 'created_at')
-    list_filter = ('is_public', 'created_at')
+    list_filter = ('is_public', 'created_at', 'is_deleted')
     search_fields = ('name', 'description')
     inlines = [FieldInline]
     ordering = ('-created_at',)
+
+    def get_queryset(self, request):
+        return Form.all_objects.all()
 
 
 @admin.register(Field)
@@ -24,3 +27,8 @@ class FieldAdmin(admin.ModelAdmin):
     list_filter = ('field_type', 'required')
     search_fields = ('question',)
     ordering = ('form', 'position')
+
+
+@admin.register(Category)
+class CategoryAdmin(admin.ModelAdmin):
+    pass
