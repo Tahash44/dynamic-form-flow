@@ -27,12 +27,6 @@ class Process(models.Model):
 
     class Meta:
         ordering = ['-created_at']
-        constraints = [
-            models.CheckConstraint(
-                name='password_required_when_private',
-                check=Q(access='public') | ~Q(password=''),
-            ),
-        ]
     
     @property
     def is_sequential(self) -> bool:
@@ -154,7 +148,7 @@ class ProcessInstance(models.Model):
         constraints = [
             models.CheckConstraint(
                 name='guest_token_only_for_guest',
-                check=Q(started_by__isnull=True) | Q(access_token__isnull=True),
+                check=Q(started_by__isnull=True) | Q(access_token__isnull=False),
             ),
         ]
 
@@ -166,7 +160,9 @@ class StepSubmission(models.Model):
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:
-        unique_together = [('instance', 'step')]
+        constraints = [
+            models.UniqueConstraint(fields=['instance', 'step'], name='uniq_instance_step')
+        ]
         ordering = ['submitted_at']
 
     def __str__(self):
