@@ -1,6 +1,8 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
+from apps.users.models import Profile
+
 User = get_user_model()
 
 
@@ -51,3 +53,39 @@ class ResetPasswordSerializer(serializers.Serializer):
         if not User.objects.filter(email=value).exists():
             raise serializers.ValidationError('No user with this email.')
         return value
+    
+
+class RefreshTokenSerializer(serializers.Serializer):
+    refresh = serializers.CharField()
+
+
+class ProfileSerializer(serializers.ModelSerializer):
+    username = serializers.CharField(source='user.username', required=False)
+    email = serializers.CharField(source='user.email', required=False)
+    password = serializers.CharField(write_only=True, required=False)
+    password2 = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = Profile
+        fields = ['username', 'email', 'bio', 'password', 'password2']
+
+    def update(self, instance, validated_data):
+        user_data = validated_data.pop('user', {})
+        username = user_data.get('username')
+        email = user_data.get('email')
+        password = validated_data.pop('password', None)
+        password2 = validated_data.pop('password2', None)
+
+        if username:
+            instance.user.username = username
+        if email:
+            instance.user.email = email
+        if password and password2 and password == password2:
+            instance.user.set_password(password)
+        instance.user.save()
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+        instance.save()
+
+        return instance

@@ -4,15 +4,18 @@ from django.core.mail import send_mail
 from django.conf import settings
 
 from rest_framework.views import APIView
-from rest_framework.generics import CreateAPIView
+from rest_framework.generics import CreateAPIView, RetrieveUpdateAPIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from rest_framework.permissions import IsAuthenticated
 
-from .serializers import ForgotPasswordSerializer, LoginSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
+from apps.users.serializers import ForgotPasswordSerializer, LoginSerializer, ProfileSerializer, RefreshTokenSerializer, RegisterSerializer, ResetPasswordSerializer, VerifyOTPSerializer, VerifyResetOTPSerializer
 
 import random
+
+from apps.users.models import Profile
 
 User = get_user_model()
 
@@ -43,7 +46,7 @@ class LoginView(APIView):
 
         send_mail(
             subject='Your Login OTP',
-            message=f'Hello {user.username},\n\nYour OTP for login is {otp}. It expires in 5 minutes.\n\nBest,\nYour App Team',
+            message=f'Hello {user.username},\n\nYour OTP for login is {otp}. It expires in 5 minutes.\n\nBest,\nDjango Form Flow',
             from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[user.email]
         )
@@ -101,7 +104,7 @@ class ForgotPasswordView(APIView):
         send_mail(
             subject="Password Reset OTP",
             message=f"Your OTP for password reset is {otp}. It expires in 5 minutes.",
-            from_email="youremail@gmail.com",
+            from_email=settings.DEFAULT_FROM_EMAIL,
             recipient_list=[email],
         )
 
@@ -162,3 +165,45 @@ class ResetPasswordView(APIView):
 
         return Response({"message": "Password reset successful."}, status=200)
 
+
+class RefreshTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+    def post(self, request):
+        seriazlier = RefreshTokenSerializer(data=request.data)
+        seriazlier.is_valid(raise_exception=True)
+
+        refresh_token = seriazlier.validated_data['refresh']
+
+        try:
+            old_token = RefreshToken(refresh_token)
+            access_token = str(old_token.access_token)
+            new_refresh = RefreshToken.for_user(old_token.user)
+            return Response({
+                'refresh': new_refresh,
+                'access': access_token
+            }, status=status.HTTP_200_OK)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_401_UNAUTHORIZED)
+
+
+class LogoutView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        serializer = RefreshTokenSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        refresh_token = serializer.validated_data['refresh']
+
+        try:
+            token = RefreshToken(refresh_token)
+            token.blacklist()
+            return Response({'message': 'Logout Successfully.'}, status=status.HTTP_205_RESET_CONTENT)
+        except Exception:
+            return Response(status=status.HTTP_400_BAD_REQUEST)
+
+
+class ProfileDetailView(RetrieveUpdateAPIView):
+    queryset = Profile.objects.all()
+    serializer_class = ProfileSerializer
+    permission_classes = [IsAuthenticated]
