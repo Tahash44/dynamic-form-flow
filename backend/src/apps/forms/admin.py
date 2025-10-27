@@ -1,15 +1,35 @@
 from django.contrib import admin
-from django.db.models.base import Model
+from .models import Form, Field
+from ..categories.models import FormCategory
 
-from .models import *
 
-# Register your models here.
-admin.site.register(Form)
-admin.site.register(WelcomePage)
-admin.site.register(FinalPage)
-#Fields Type
-admin.site.register(FormCheckBoxField)
-admin.site.register(FormSelectField)
-admin.site.register(FormTextField)
-admin.site.register(FormNumberField)
-admin.site.register(FormDateField)
+class FieldInline(admin.TabularInline):
+    model = Field
+    extra = 1
+    fields = ('question', 'field_type', 'required', 'position', 'options')
+    ordering = ('position',)
+
+
+@admin.register(Form)
+class FormAdmin(admin.ModelAdmin):
+    list_display = ('name', 'created_by', 'is_public', 'created_at')
+    list_filter = ('is_public', 'created_at', 'is_deleted')
+    search_fields = ('name', 'description')
+    inlines = [FieldInline]
+    ordering = ('-created_at',)
+
+    def get_queryset(self, request):
+        return Form.all_objects.all()
+
+
+@admin.register(Field)
+class FieldAdmin(admin.ModelAdmin):
+    list_display = ('question', 'form', 'field_type', 'required', 'position')
+    list_filter = ('field_type', 'required')
+    search_fields = ('question',)
+    ordering = ('form', 'position')
+
+
+@admin.register(FormCategory)
+class CategoryAdmin(admin.ModelAdmin):
+    pass

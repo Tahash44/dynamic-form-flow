@@ -1,99 +1,63 @@
-from config.settings import AUTH_USER_MODEL
-from django.core.exceptions import ValidationError
+from django.contrib.auth.models import User
 from django.db import models
-from django.core.validators import MinValueValidator
-from django.core.exceptions import ValidationError
-from django.utils import timezone
+
+
+class NonDeletedObjects(models.Manager):
+    def get_queryset(self):
+        return super().get_queryset().filter(is_deleted=False)
+
 
 class Form(models.Model):
-    title = models.CharField(max_length=255)
-    created_by = models.ForeignKey(AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True)
-    is_active = models.BooleanField(default=False)
+    name = models.CharField(max_length=255)
+    description = models.TextField(blank=True, null=True)
+    is_public = models.BooleanField(default=True)
+    is_open = models.BooleanField(default=False)
+    created_by = models.ForeignKey(User, on_delete=models.CASCADE)
+    created_at = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField(max_length=8, unique=True)
+    # Fields about deleting the object
+    is_deleted = models.BooleanField(default=False)
+    deleted_at = models.DateTimeField(blank=True, null=True)
+    objects = NonDeletedObjects()
+    all_objects = models.Manager()
 
-
-
-
-class WelcomePage(models.Model):
-    title = models.CharField(max_length=255)
-    form = models.OneToOneField(Form, on_delete=models.CASCADE)
-    description = models.TextField()
-    entrance_button_text = models.CharField(max_length=50, blank=True)
-
-
-class FinalPage(models.Model):
-    text = models.TextField(null=False)
-    form = models.OneToOneField(Form, on_delete=models.CASCADE)
-
-
-
+    def __str__(self):
+        return self.name
 
 
 class Field(models.Model):
-    form = models.ForeignKey('Form', on_delete=models.CASCADE,related_name='fields')
-    position = models.PositiveSmallIntegerField(default=0)
+    FIELD_TYPES = [
+        ('text', 'متن'),
+        ('select', 'گزینه‌ای'),
+        ('checkbox', 'چک‌باکس'),
+        ('number', 'عددی'),
+        ('date', 'تاریخ'),
+    ]
+
+    form = models.ForeignKey(Form, related_name='fields', on_delete=models.CASCADE)
     question = models.CharField(max_length=255)
-    description = models.TextField(null=True, blank=True)
-    required = models.BooleanField(null=False, default=False)
-    show_position = models.BooleanField(null=False, default=True)
+    field_type = models.CharField(max_length=20, choices=FIELD_TYPES)
+    required = models.BooleanField(default=False)
+    position = models.IntegerField(default=0)
+    options = models.JSONField(blank=True, null=True)
+    max_length = models.IntegerField(blank=True, null=True)
+    min_value = models.IntegerField(blank=True, null=True)
+    max_value = models.IntegerField(blank=True, null=True)
 
-    class Meta:
-        ordering = ['position']
-        unique_together = ('form', 'position',)
-
-
-def validate_string_list(value):
-    """Validate that the value is a list of strings"""
-    if not isinstance(value, list):
-        raise ValidationError('Value must be a list')
-
-    for item in value:
-        if not isinstance(item, str):
-            raise ValidationError('All items must be strings')
+    def __str__(self):
+        return f"{self.question} ({self.field_type})"
 
 
-class FormCheckBoxField(Field):
-    check_box_names = models.JSONField(
-        default=list,
-        validators=[validate_string_list],
-    )
-    minimum = models.PositiveSmallIntegerField(default=0)
-    maximum = models.PositiveSmallIntegerField(
-        null=True,
-        validators=[MinValueValidator(1)],
-    )
+class Response(models.Model):
+    form = models.ForeignKey(Form, on_delete=models.CASCADE)
+    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    submitted_at = models.DateTimeField(auto_now_add=True)
 
 
-class FormSelectField(Field):
-    options = models.JSONField(
-        default=list,
-        validators=[validate_string_list],
-    )
+class Answer(models.Model):
+    response = models.ForeignKey(Response, related_name='answers', on_delete=models.CASCADE)
+    field = models.ForeignKey(Field, on_delete=models.CASCADE)
+    value = models.TextField()
 
 
-class FormTextField(Field):
-    max_length = models.PositiveSmallIntegerField(
-        validators=[MinValueValidator(1)],
-    )
-
-class FormNumberField(Field):
-    min_value = models.FloatField(null=True, blank=True)
-    max_value = models.FloatField(null=True, blank=True)
-    decimal_allowed = models.BooleanField(default=False)
-
-    def clean(self):
-        super().clean()
-        if self.min_value is not None and self.max_value is not None:
-            if self.min_value > self.max_value:
-                raise ValidationError("min_value cannot be greater than max_value.")
-
-class FormDateField(Field):
-    min_date = models.DateTimeField(null=True, blank=True)
-    max_date = models.DateTimeField(null=True, blank=True)
-    include_time = models.BooleanField(default=False)
-
-    def clean(self):
-        super().clean()
-        if self.min_date and self.max_date and self.min_date > self.max_date:
-            raise ValidationError("min_date cannot be greater than max_date.")
 
