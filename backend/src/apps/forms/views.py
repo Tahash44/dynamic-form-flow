@@ -1,8 +1,8 @@
 from django.utils import timezone
 from rest_framework import viewsets
 
-from .models import Form, Field
-from .serializer import FormSerializer, FieldSerializer
+from .models import Form, Field, Response
+from .serializer import FormSerializer, FieldSerializer, ResponseSerializer
 
 
 class FieldViewSet(viewsets.ModelViewSet):
@@ -23,3 +23,16 @@ class FormViewSet(viewsets.ModelViewSet):
         instance.save()
 
 
+class ResponseViewSet(viewsets.ModelViewSet):
+    queryset = Response.objects.all()
+    serializer_class = ResponseSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+    def get_queryset(self):
+        queryset = Response.objects.all()
+        form_id = self.request.query_params.get('form')
+        if form_id is not None:
+            queryset = queryset.filter(form_id=form_id)
+        return queryset

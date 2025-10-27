@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from .models import Form, Field
+from .models import Form, Field, Answer, Response
 
 
 class FieldSerializer(serializers.ModelSerializer):
@@ -26,3 +26,24 @@ class FormSerializer(serializers.ModelSerializer):
             for category in obj.categories.all()
         ]
 
+
+
+class AnswerSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Answer
+        fields = ['id', 'field', 'value']
+
+class ResponseSerializer(serializers.ModelSerializer):
+    answers = AnswerSerializer(many=True)
+
+    class Meta:
+        model = Response
+        fields = ['id', 'form', 'user', 'submitted_at', 'answers']
+        read_only_fields = ['user', 'submitted_at']
+
+    def create(self, validated_data):
+        answers_data = validated_data.pop('answers')
+        response = Response.objects.create(**validated_data)
+        for answer_data in answers_data:
+            Answer.objects.create(response=response, **answer_data)
+        return response

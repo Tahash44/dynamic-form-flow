@@ -1,11 +1,11 @@
 from django.urls import path
 from .views import StartProcessView, CurrentStepView, SubmitStepView, ProcessListCreateView, ProcessRUDView, \
     StepListCreateView, StepRUDView
-from .views import (
-    FreeFlowProcessListCreateView,
-    FreeFlowStartProcessView,
-    FreeFlowSubmitStepView,
-)
+# from .views import (
+#     FreeFlowProcessListCreateView,
+#     FreeFlowStartProcessView,
+#     FreeFlowSubmitStepView,
+# )
 
 
 urlpatterns = [
@@ -19,9 +19,9 @@ urlpatterns = [
     path('instances/<int:pk>/current-step/', CurrentStepView.as_view(), name='current-step'),
     path('instances/<int:pk>/submit-step/', SubmitStepView.as_view(), name='submit-step'),
     
-    #freeflow
-    path('freeflow/', FreeFlowProcessListCreateView.as_view(), name='freeflow-process-list-create'),
-    path('freeflow/<int:pk>/start/', FreeFlowStartProcessView.as_view(), name='freeflow-process-start'),
-    path('freeflow/instances/<int:pk>/submit-step/', FreeFlowSubmitStepView.as_view(), name='freeflow-submit-step'),
+    # #freeflow
+    # path('freeflow/', FreeFlowProcessListCreateView.as_view(), name='freeflow-process-list-create'),
+    # path('freeflow/<int:pk>/start/', FreeFlowStartProcessView.as_view(), name='freeflow-process-start'),
+    # path('freeflow/instances/<int:pk>/submit-step/', FreeFlowSubmitStepView.as_view(), name='freeflow-submit-step'),
 
 ]

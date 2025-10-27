@@ -87,7 +87,7 @@ class ProcessInstance(models.Model):
     current_step = models.ForeignKey('ProcessStep', on_delete=models.SET_NULL,null=True, blank=True,related_name='current_instances')
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    access_token = models.CharField(max_length=128, null=True, blank=True, db_index=True, unique=True)
+    access_token = models.CharField( null=True, blank=True, db_index=True, unique=True)
     access_token_expires_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):
@@ -138,6 +138,11 @@ class ProcessInstance(models.Model):
         self.access_token_expires_at = timezone.now() + timedelta(hours=ttl_hours)
         self.save(update_fields=['access_token', 'access_token_expires_at'])
 
+    def save(self, *args, **kwargs):
+        if self.started_by is None and not self.access_token:
+            self.access_token = secrets.token_urlsafe(48)
+            self.access_token_expires_at = timezone.now() + timedelta(hours=24)
+        super().save(*args, **kwargs)
 
     class Meta:
         ordering = ['-started_at']
