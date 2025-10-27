@@ -207,7 +207,14 @@ class FreeFlowProcessListCreateView(ListCreateAPIView):
         return FreeFlowProcessWriteSerializer if self.request.method == 'POST' else FreeFlowProcessSerializer
 
     def get_queryset(self):
-        return super().get_queryset().filter(owner__user=self.request.user)
+        if self.request.method == 'GET':
+            return super().get_queryset().filter(owner__user=self.request.user)
+        return super().get_queryset()
+
+    def perform_create(self, serializer):
+        serializer.save(owner=self.request.user.profile)
+
+
 
 class FreeFlowStartProcessView(CreateAPIView):
     serializer_class = ProcessInstanceSerializer
