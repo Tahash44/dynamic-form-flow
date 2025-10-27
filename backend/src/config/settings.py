@@ -15,7 +15,6 @@ from decouple import config
 import environ
 from datetime import timedelta
 
-
 env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -45,8 +44,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    'rest_framework_simplejwt.token_blacklist',
     "drf_yasg",
+    'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'rest_framework_swagger',
     "config.api",
@@ -74,6 +73,21 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
+
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+
+    'DEFAULT_THROTTLE_RATES': {
+        'start_process': '10/minute',
+        'current_step': '35/minute',
+        'submit_step': '35/minute',
+
+        'user': '100/minute',
+        'anon': '60/minute',
+    },
 }
 
 #Celery Redis
@@ -175,6 +189,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True
+}
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -190,12 +211,7 @@ CACHES = {
     }
 }
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True,  
-    "BLACKLIST_AFTER_ROTATION": True
-}
+CACHE_TTL = 60 * 5
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 EMAIL_HOST = env("EMAIL_HOST", default="localhost")
