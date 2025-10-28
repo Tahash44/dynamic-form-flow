@@ -1,13 +1,7 @@
 from django.urls import path
 from .views import StartProcessView, CurrentStepView, SubmitStepView, ProcessListCreateView, ProcessRUDView, \
     StepListCreateView, StepRUDView, ProcessFreeListView, StartFreeProcessView, CurrentStepsFreeView, \
-    SubmitFreeStepView, ProcessSequentialListView, ProcessListView
-
-# from .views import (
-#     FreeFlowProcessListCreateView,
-#     FreeFlowStartProcessView,
-#     FreeFlowSubmitStepView,
-# )
+    SubmitFreeStepView, ProcessSequentialListView, ProcessListView, SkipStepView
 
 
 urlpatterns = [
@@ -25,6 +19,7 @@ urlpatterns = [
     path('<int:pk>/start/', StartProcessView.as_view(), name='process-start'),
     path('instances/<int:pk>/current-step/', CurrentStepView.as_view(), name='current-step'),
     path('instances/<int:pk>/submit-step/', SubmitStepView.as_view(), name='submit-step'),
+    path('instances/<int:pk>/skip-step/', SkipStepView.as_view(), name='skip-step'),
 
 
     path('free/<int:pk>/start/', StartFreeProcessView.as_view(), name='free-process-start'),

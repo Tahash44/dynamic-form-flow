@@ -56,14 +56,12 @@ class ProcessStep(models.Model):
     form = models.ForeignKey(Form, on_delete=models.PROTECT, related_name='used_in_steps')
     title = models.CharField(max_length=255, blank=True)
     order = models.PositiveIntegerField(default=1, db_index=True, validators=[MinValueValidator(1)])
+    allow_skip = models.BooleanField(default=False)  # ⬅️ جدید
 
     class Meta:
         ordering = ['order']
         constraints = [
-            models.UniqueConstraint(
-                fields=['process', 'order'],
-                name='uniq_step_order_per_process',
-            ),
+            models.UniqueConstraint(fields=['process', 'order'], name='uniq_step_order_per_process'),
         ]
         indexes = [
             models.Index(fields=['process', 'order'], name='idx_process_order'),
@@ -161,7 +159,8 @@ class ProcessInstance(models.Model):
 class StepSubmission(models.Model):
     instance = models.ForeignKey('ProcessInstance', on_delete=models.CASCADE, related_name='submissions')
     step = models.ForeignKey('ProcessStep', on_delete=models.CASCADE, related_name='submissions')
-    form_response = models.ForeignKey('forms.Response', on_delete=models.CASCADE, related_name='step_submissions')
+    form_response = models.ForeignKey('forms.Response', on_delete=models.CASCADE,related_name='step_submissions', null=True, blank=True)
+    skipped = models.BooleanField(default=False)
     submitted_at = models.DateTimeField(auto_now_add=True)
 
     class Meta:

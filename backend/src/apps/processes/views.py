@@ -344,3 +344,34 @@ class SubmitFreeStepView(CreateAPIView):
         instance.mark_completed_if_done()
 
         return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
+
+class SkipStepView(CreateAPIView):
+    serializer_class = ProcessInstanceSerializer
+    permission_classes = [AllowAny]
+
+    def create(self, request, *args, **kwargs):
+        instance = (ProcessInstance.objects.filter(pk=self.kwargs.get('pk')).select_related('current_step__form', 'process').first())
+        if not instance:
+            raise ValidationError({'detail': 'Instance not found.'})
+
+        require_guest_token_if_needed(request, instance)
+
+        if instance.process.type != Process.SEQUENTIAL:
+            raise ValidationError({'detail': 'Skip is only allowed in sequential processes.'})
+
+        step = instance.current_step
+        if not step:
+            raise ValidationError({'detail': 'Process already completed.'})
+
+        if not step.allow_skip:
+            raise ValidationError({'detail': 'This step cannot be skipped.'})
+
+        if StepSubmission.objects.filter(instance=instance, step=step).exists():
+            raise ValidationError({'detail': 'This step is already submitted.'})
+
+        StepSubmission.objects.create(instance=instance, step=step, form_response=None, skipped=True)
+
+        instance.advance_after_submission(step)
+        instance.refresh_from_db()
+
+        return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)

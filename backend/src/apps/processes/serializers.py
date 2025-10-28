@@ -13,7 +13,7 @@ class StepInlineWriteSerializer(serializers.Serializer):
 class ProcessStepSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProcessStep
-        fields = ['id', 'title', 'order', 'form']
+        fields = ['id', 'title', 'order', 'form', 'allow_skip']
 
 
 class ProcessSerializer(serializers.ModelSerializer):
@@ -115,77 +115,3 @@ class FreeStepSerializer(serializers.ModelSerializer):
             return False
         return StepSubmission.objects.filter(instance=instance, step=obj).exists()
 
-# #freeflow
-#
-# class FreeFlowProcessSerializer(ProcessSerializer):
-#     class Meta(ProcessSerializer.Meta):
-#         model = Process
-#         fields = ['id', 'title', 'type', 'access', 'is_active', 'steps']
-#
-# class FreeFlowProcessWriteSerializer(ProcessWriteSerializer):
-#     class Meta(ProcessWriteSerializer.Meta):
-#         model = Process
-#         fields = ['id', 'title', 'type', 'access', 'password', 'is_active']
-#         extra_kwargs = ProcessWriteSerializer.Meta.extra_kwargs
-#
-#     def validate(self, attrs):
-#         attrs['type'] = Process.FREE_FLOW
-#         if attrs.get('access') == getattr(Process, 'PRIVATE', None) and not (attrs.get('password') or '').strip():
-#             raise serializers.ValidationError({'password': 'Password is required for private processes.'})
-#         return attrs
-#
-#     def create(self, validated_data):
-#         request = self.context['request']
-#         owner = getattr(request.user, 'profile', None)
-#         if not owner:
-#             raise serializers.ValidationError({'owner': 'Profile not found for user.'})
-#         return Process.objects.create(owner=owner, **validated_data)
-#
-# class FreeFlowStepWriteSerializer(ProcessStepWriteSerializer):
-#     class Meta(ProcessStepWriteSerializer.Meta):
-#         model = ProcessStep
-#         fields = ['id', 'title', 'order', 'form', 'process']
-#
-#     def validate(self, attrs):
-#         process = attrs.get('process') or getattr(self.instance, 'process', None)
-#         if process and process.type != Process.FREE_FLOW:
-#             raise serializers.ValidationError({'process': 'This serializer is for free-flow processes only.'})
-#         return attrs
-#
-#
-# #freeflow
-#
-# class FreeFlowProcessSerializer(ProcessSerializer):
-#     class Meta(ProcessSerializer.Meta):
-#         model = Process
-#         fields = ['id', 'title', 'type', 'access', 'is_active', 'steps']
-#
-# class FreeFlowProcessWriteSerializer(ProcessWriteSerializer):
-#     class Meta(ProcessWriteSerializer.Meta):
-#         model = Process
-#         fields = ['id', 'title', 'type', 'access', 'password', 'is_active']
-#         extra_kwargs = ProcessWriteSerializer.Meta.extra_kwargs
-#
-#     def validate(self, attrs):
-#         attrs['type'] = Process.FREE_FLOW
-#         if attrs.get('access') == getattr(Process, 'PRIVATE', None) and not (attrs.get('password') or '').strip():
-#             raise serializers.ValidationError({'password': 'Password is required for private processes.'})
-#         return attrs
-#
-#     def create(self, validated_data):
-#         request = self.context['request']
-#         owner = getattr(request.user, 'profile', None)
-#         if not owner:
-#             raise serializers.ValidationError({'owner': 'Profile not found for user.'})
-#         return Process.objects.create(owner=owner, **validated_data)
-#
-# class FreeFlowStepWriteSerializer(ProcessStepWriteSerializer):
-#     class Meta(ProcessStepWriteSerializer.Meta):
-#         model = ProcessStep
-#         fields = ['id', 'title', 'order', 'form', 'process']
-#
-#     def validate(self, attrs):
-#         process = attrs.get('process') or getattr(self.instance, 'process', None)
-#         if process and process.type != Process.FREE_FLOW:
-#             raise serializers.ValidationError({'process': 'This serializer is for free-flow processes only.'})
-#         return attrs
