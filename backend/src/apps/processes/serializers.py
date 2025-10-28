@@ -44,7 +44,9 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
         fields = ['title', 'type', 'is_active']
 
     def validate(self, attrs):
-        attrs['type'] = Process.SEQUENTIAL
+        attrs['type'] = attrs.get('type', Process.SEQUENTIAL)
+        if attrs['type'] not in dict(Process.TYPE_CHOICES):
+            raise serializers.ValidationError({'type': 'Invalid process type.'})
         return attrs
 
     def create(self, validated_data):
@@ -67,11 +69,27 @@ class ProcessStepWriteSerializer(serializers.ModelSerializer):
         fields = ['title', 'order', 'form']
 
     def validate(self, attrs):
-        process = getattr(self.instance, 'process', None)
+        process = getattr(self.instance, 'process', None) or self.context.get('process')
         if process and process.type != Process.SEQUENTIAL:
             raise serializers.ValidationError({'process': 'Only sequential processes can have steps here.'})
         return attrs
 
+
+class FreeStepSerializer(serializers.ModelSerializer):
+    is_submitted = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ProcessStep
+        fields = ['id', 'title', 'order', 'form', 'is_submitted']
+
+    def get_is_submitted(self, obj):
+        submitted = self.context.get('submitted_step_ids')
+        if isinstance(submitted, set):
+            return obj.id in submitted
+        instance = self.context.get('instance')
+        if not instance:
+            return False
+        return StepSubmission.objects.filter(instance=instance, step=obj).exists()
 
 # #freeflow
 #
