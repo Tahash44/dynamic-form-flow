@@ -1,3 +1,4 @@
+from django.db.models import Max
 from rest_framework import serializers
 from apps.users.models import Profile
 from .models import Process, ProcessStep, ProcessInstance, StepSubmission
@@ -26,6 +27,7 @@ class ProcessSerializer(serializers.ModelSerializer):
 
 
 class ProcessInstanceSerializer(serializers.ModelSerializer):
+    started_by = serializers.PrimaryKeyRelatedField(read_only=True)
     process = ProcessSerializer(read_only=True)
     current_step = ProcessStepSerializer(read_only=True)
 
@@ -35,7 +37,7 @@ class ProcessInstanceSerializer(serializers.ModelSerializer):
             'id', 'process', 'started_by', 'status',
             'current_step', 'started_at', 'completed_at'
         ]
-        read_only_fields = ['status', 'started_at', 'completed_at']
+        read_only_fields = ['started_by', 'status', 'started_at', 'completed_at']
 
 
 class StepSubmissionSerializer(serializers.ModelSerializer):
@@ -43,6 +45,7 @@ class StepSubmissionSerializer(serializers.ModelSerializer):
         model = StepSubmission
         fields = ['id', 'instance', 'step', 'form_response', 'submitted_at']
         read_only_fields = ['submitted_at']
+
 
 
 class ProcessWriteSerializer(serializers.ModelSerializer):
@@ -53,15 +56,17 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
         fields = ['title', 'type', 'is_active', 'steps']
 
     def validate(self, attrs):
+        if 'type' not in attrs:
+            attrs['type'] = Process.SEQUENTIAL
+
         ptype = attrs.get('type')
         if ptype not in (Process.SEQUENTIAL, Process.FREE_FLOW):
             raise serializers.ValidationError({'type': 'Invalid process type.'})
 
-        steps = self.initial_data.get('steps') or []
-        given_orders = [s.get('order') for s in steps if s.get('order') is not None]
+        steps_in = self.initial_data.get('steps') or []
+        given_orders = [s.get('order') for s in steps_in if s.get('order') is not None]
         if len(given_orders) != len(set(given_orders)):
             raise serializers.ValidationError({'steps': 'Duplicate orders are not allowed.'})
-
 
         return attrs
 
@@ -82,7 +87,8 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
             form = item['form']
             title = item.get('title', '')
             order = item.get('order') or next_order
-            ProcessStep.objects.create(process=process, form=form, title=title, order=order)
+            allow_skip = item.get('allow_skip', False)
+            ProcessStep.objects.create(process=process,form=form,title=title,order=order,allow_skip=allow_skip)
             next_order = max(next_order + 1, order + 1)
 
         return process
@@ -90,13 +96,39 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
 class ProcessStepWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProcessStep
-        fields = ['title', 'order', 'form']
+        fields = ['title', 'order', 'form', 'allow_skip']
+
+    def _get_process(self):
+        return self.context.get('process') or getattr(self.instance, 'process', None)
 
     def validate(self, attrs):
-        process = getattr(self.instance, 'process', None) or self.context.get('process')
-        if process and process.type != Process.SEQUENTIAL:
-            raise serializers.ValidationError({'process': 'Only sequential processes can have steps here.'})
+        process = self._get_process()
+        if not process:
+            raise serializers.ValidationError({'process': 'Process context is required.'})
+
+        incoming_order = attrs.get('order', getattr(self.instance, 'order', None))
+
+        if process.type == Process.SEQUENTIAL:
+            if incoming_order is None:
+                raise serializers.ValidationError({'order': 'Order is required for sequential processes.'})
+            if incoming_order < 1:
+                raise serializers.ValidationError({'order': 'Order must be ≥ 1.'})
+        else:
+            if incoming_order is not None and incoming_order < 1:
+                raise serializers.ValidationError({'order': 'Order must be ≥ 1.'})
+
         return attrs
+
+    def create(self, validated_data):
+        process = self._get_process()
+        if process.type == Process.FREE_FLOW and 'order' not in validated_data:
+            max_order = process.steps.aggregate(m=Max('order'))['m'] or 0
+            validated_data['order'] = max_order + 1
+
+        return ProcessStep.objects.create(process=process, **validated_data)
+
+    def update(self, instance, validated_data):
+        return super().update(instance, validated_data)
 
 
 class FreeStepSerializer(serializers.ModelSerializer):

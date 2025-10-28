@@ -142,10 +142,6 @@ class CurrentStepView(RetrieveAPIView):
         if not step:
             return Response({'detail': 'Process completed.'})
 
-        step = instance.current_step
-        if not step:
-            return Response({'detail': 'Process completed.'})
-
         ensure_form_password_if_private(step.form, request)
         return Response(self.get_serializer(step).data)
 
