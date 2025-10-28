@@ -11,9 +11,9 @@ class FieldInline(admin.TabularInline):
 
 @admin.register(Form)
 class FormAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_by', 'access', 'created_at')
+    list_display = ['id', 'name', 'access', 'created_by', 'created_at', 'slug']
     list_filter = ('access', 'created_at')
-    search_fields = ('name', 'description')
+    search_fields = ['name', 'description', 'slug', 'created_by__username']
     inlines = [FieldInline]
     ordering = ('-created_at',)
 
