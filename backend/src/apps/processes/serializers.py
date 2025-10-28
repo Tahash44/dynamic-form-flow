@@ -1,6 +1,13 @@
 from rest_framework import serializers
 from apps.users.models import Profile
 from .models import Process, ProcessStep, ProcessInstance, StepSubmission
+from apps.forms.models import Form
+
+
+class StepInlineWriteSerializer(serializers.Serializer):
+    form = serializers.PrimaryKeyRelatedField(queryset=Form.objects.all())
+    title = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    order = serializers.IntegerField(required=False, min_value=1)
 
 
 class ProcessStepSerializer(serializers.ModelSerializer):
@@ -39,14 +46,23 @@ class StepSubmissionSerializer(serializers.ModelSerializer):
 
 
 class ProcessWriteSerializer(serializers.ModelSerializer):
+    steps = StepInlineWriteSerializer(many=True, required=False)
+
     class Meta:
         model = Process
-        fields = ['title', 'type', 'is_active']
+        fields = ['title', 'type', 'is_active', 'steps']
 
     def validate(self, attrs):
-        attrs['type'] = attrs.get('type', Process.SEQUENTIAL)
-        if attrs['type'] not in dict(Process.TYPE_CHOICES):
+        ptype = attrs.get('type')
+        if ptype not in (Process.SEQUENTIAL, Process.FREE_FLOW):
             raise serializers.ValidationError({'type': 'Invalid process type.'})
+
+        steps = self.initial_data.get('steps') or []
+        given_orders = [s.get('order') for s in steps if s.get('order') is not None]
+        if len(given_orders) != len(set(given_orders)):
+            raise serializers.ValidationError({'steps': 'Duplicate orders are not allowed.'})
+
+
         return attrs
 
     def create(self, validated_data):
@@ -54,14 +70,22 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
         if not request or not request.user or not request.user.is_authenticated:
             raise serializers.ValidationError({'owner': 'Authentication required to create a process.'})
 
-        owner_profile = getattr(request.user, 'profile', None)
-        if owner_profile is None:
-            owner_profile = Profile.objects.filter(user=request.user).first()
-        if owner_profile is None:
-            owner_profile = Profile.objects.create(user=request.user)
+        owner_profile = getattr(request.user, 'profile', None) \
+            or Profile.objects.filter(user=request.user).first() \
+            or Profile.objects.create(user=request.user)
 
-        return Process.objects.create(owner=owner_profile, **validated_data)
+        steps_data = validated_data.pop('steps', [])
+        process = Process.objects.create(owner=owner_profile, **validated_data)
 
+        next_order = 1
+        for item in steps_data:
+            form = item['form']
+            title = item.get('title', '')
+            order = item.get('order') or next_order
+            ProcessStep.objects.create(process=process, form=form, title=title, order=order)
+            next_order = max(next_order + 1, order + 1)
+
+        return process
 
 class ProcessStepWriteSerializer(serializers.ModelSerializer):
     class Meta:

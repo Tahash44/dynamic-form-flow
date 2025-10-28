@@ -87,7 +87,7 @@ class ProcessInstance(models.Model):
     current_step = models.ForeignKey('ProcessStep', on_delete=models.SET_NULL,null=True, blank=True,related_name='current_instances')
     started_at = models.DateTimeField(auto_now_add=True)
     completed_at = models.DateTimeField(null=True, blank=True)
-    access_token = models.CharField( null=True, blank=True, db_index=True, unique=True)
+    access_token = models.CharField(null=True, blank=True, db_index=True, unique=True)
     access_token_expires_at = models.DateTimeField(null=True, blank=True)
 
     def __str__(self):

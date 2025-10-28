@@ -23,7 +23,7 @@ class ProcessAdmin(admin.ModelAdmin):
 class ProcessStepAdmin(admin.ModelAdmin):
     list_display = ('id', 'process', 'title', 'form', 'order')
     list_filter = ('process',)
-    search_fields = ('title', 'process__title', 'form__title')
+    search_fields = ('title', 'process__title', 'form__name')
     ordering = ('process', 'order')
     list_editable = ('order',)
 
