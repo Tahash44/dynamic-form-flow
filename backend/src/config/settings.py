@@ -15,6 +15,8 @@ from decouple import config
 import environ
 from datetime import timedelta
 
+from celery.schedules import crontab
+
 env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -220,3 +222,10 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+
+CELERY_BEAT_SCHEDULE = {
+    'purge-expired-guest-instances-every-15m': {
+        'task': 'apps.processes.tasks.purge_expired_guest_instances',
+        'schedule': 45 * 60,
+    },
+}

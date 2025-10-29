@@ -1,8 +1,7 @@
 import secrets
-from datetime import timedelta, datetime
+from datetime import timedelta
 
 from django.db.models import Prefetch
-from rest_framework_simplejwt.tokens import AccessToken
 from django.utils import timezone
 from rest_framework import status, filters
 from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, ListCreateAPIView, \
@@ -10,19 +9,14 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView,
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
-import pytz
 from .models import Process, ProcessInstance, ProcessStep, StepSubmission
 from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
     ProcessWriteSerializer, ProcessStepWriteSerializer, FreeStepSerializer, StepWithFormSerializer
 from ..forms.models import Field
+from apps.forms.models import Response as FormResponse, Answer as FormAnswer, Field as FormField
+from django.core.cache import cache
 
-
-# from .serializers import (
-#     FreeFlowProcessSerializer,
-#     FreeFlowProcessWriteSerializer,
-#     #FreeFlowStepWriteSerializer,
-# )
 
 def get_form_password_from_request(request):
     return (
@@ -52,16 +46,53 @@ def get_instance_token_from_request(request):
 def require_guest_token_if_needed(request, instance):
     if instance.started_by_id:
         return
-
-    token = get_instance_token_from_request(request)
+    token = (
+        request.headers.get('X-Instance-Token')
+        or request.query_params.get('token')
+        or request.data.get('token')
+    )
     if not token:
         raise ValidationError({'detail': 'Guest instance token is required.'})
 
-    if token != (instance.access_token or ''):
-        raise ValidationError({'detail': 'Invalid guest token.'})
+    cached = cache.get(f'proc:guest:{instance.id}:token')
+    if cached is None:
+        if token != (instance.access_token or ''):
+            raise ValidationError({'detail': 'Invalid guest token.'})
+        if instance.access_token_expires_at and timezone.now() > instance.access_token_expires_at:
+            raise ValidationError({'detail': 'Guest token expired.'})
+    else:
+        if token != cached:
+            raise ValidationError({'detail': 'Invalid guest token.'})
 
-    if instance.access_token_expires_at and timezone.now() > instance.access_token_expires_at:
-        raise ValidationError({'detail': 'Guest token expired.'})
+def build_form_response_from_answers_or_skip(step_form, request):
+    skip = bool(request.data.get('skip', False))
+    if skip:
+        return FormResponse.objects.create(
+            form=step_form,
+            user=request.user if request.user.is_authenticated else None
+        )
+
+    answers_payload = request.data.get('answers')
+    if not isinstance(answers_payload, list) or not answers_payload:
+        raise ValidationError({'detail': 'answers must be a non-empty list or use skip=true.'})
+
+    field_ids = [a.get('field') for a in answers_payload]
+    if not all(isinstance(fid, int) for fid in field_ids):
+        raise ValidationError({'detail': 'each answer.field must be integer id.'})
+
+    fields_qs = FormField.objects.filter(form=step_form, id__in=field_ids)
+    if fields_qs.count() != len(set(field_ids)):
+        raise ValidationError({'detail': 'some fields do not belong to current form.'})
+
+    fr = FormResponse.objects.create(
+        form=step_form,
+        user=request.user if request.user.is_authenticated else None
+    )
+    FormAnswer.objects.bulk_create([
+        FormAnswer(response=fr, field_id=a['field'], value=str(a.get('value', '')).strip())
+        for a in answers_payload
+    ])
+    return fr
 
 
 class ProcessListView(ListAPIView):
@@ -94,42 +125,40 @@ class StartProcessView(CreateAPIView):
             raise ValidationError({'detail': 'Process not found or inactive.'})
 
         access_token = None
+
         if not request.user.is_authenticated:
+            ttl_hours = 48
+            ttl_seconds = ttl_hours * 3600
             token = secrets.token_urlsafe(48)
-            expires = timezone.now() + timedelta(hours=24)
-            instance = ProcessInstance(
+            expires = timezone.now() + timedelta(hours=ttl_hours)
+
+            instance = ProcessInstance.objects.create(
                 process=process,
                 started_by=None,
                 access_token=token,
                 access_token_expires_at=expires,
+
             )
-            instance.save()
+            cache.set(f'proc:guest:{instance.id}:token', token, timeout=ttl_seconds)
+            cache.set(f'proc:guest:bytoken:{token}', instance.id, timeout=ttl_seconds)
+
             access_token = token
+
         else:
-            token_obj = request.auth
-            token_str = str(token_obj)
-            expires_at = None
-            if token_obj:
-                try:
-                    at = AccessToken(token_str)
-                    expires_timestamp = at['exp']
-                    expires_at = datetime.fromtimestamp(expires_timestamp, tz=pytz.UTC)
-                except Exception:
-                    expires_at = None
             instance = ProcessInstance.objects.create(
                 process=process,
                 started_by=request.user,
-                access_token=token_str,
-                access_token_expires_at=expires_at,
+                access_token=None,
+                access_token_expires_at=None,
             )
-            access_token = None
 
         instance.start()
 
         data = self.get_serializer(instance).data
-        if access_token:
-            return Response({'instance': data, 'access_token': access_token}, status=status.HTTP_201_CREATED)
-        return Response(data, status=status.HTTP_201_CREATED)
+        return Response(
+            {'instance': data, 'access_token': access_token} if access_token else data,
+            status=status.HTTP_201_CREATED
+        )
 
 
 class CurrentStepView(RetrieveAPIView):
@@ -154,7 +183,9 @@ class SubmitStepView(CreateAPIView):
     permission_classes = [AllowAny]
 
     def create(self, request, *args, **kwargs):
-        instance = (ProcessInstance.objects.filter(pk=self.kwargs.get('pk')).select_related('current_step__form', 'process').first())
+        instance = ProcessInstance.objects.select_related('current_step__form', 'process').filter(
+            pk=self.kwargs.get('pk')
+        ).first()
         if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
 
@@ -164,33 +195,18 @@ class SubmitStepView(CreateAPIView):
         if not step:
             raise ValidationError({'detail': 'Process already completed.'})
 
-        form = step.form
-        ensure_form_password_if_private(form, request)
+        ensure_form_password_if_private(step.form, request)
 
-        form_response_id = request.data.get('form_response')
-        if not form_response_id:
-            raise ValidationError({'detail': 'form_response ID is required.'})
+        fr = build_form_response_from_answers_or_skip(step.form, request)
 
-        from apps.forms.models import Response as FormResponse
-        fr = (FormResponse.objects.select_related('form', 'user').filter(pk=form_response_id).first())
-        if not fr:
-            raise ValidationError({'detail': 'form_response not found.'})
-        if fr.form_id != form.id:
-            raise ValidationError({'detail': 'form_response does not belong to the current step form.'})
-        if request.user.is_authenticated and fr.user_id != request.user.id:
-            raise ValidationError({'detail': 'form_response belongs to a different user.'})
-
-        serializer = self.get_serializer(data={
-            'instance': instance.id,
-            'step': step.id,
-            'form_response': fr.id,
-        })
+        payload = {'instance': instance.id, 'step': step.id, 'form_response': fr.id}
+        serializer = self.get_serializer(data=payload)
         serializer.is_valid(raise_exception=True)
-        submission = serializer.save()
-
-        instance.advance_after_submission(step)
+        serializer.save()
 
         instance.refresh_from_db()
+        instance.advance_after_submission(step)
+
         return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
 
 
@@ -301,45 +317,39 @@ class CurrentStepsFreeView(ListAPIView):
         })
         return Response(ser.data)
 
-class SubmitFreeStepView(CreateAPIView):
-    serializer_class = StepSubmissionSerializer
+class SubmitFreeView(CreateAPIView):
     permission_classes = [AllowAny]
+    serializer_class = StepSubmissionSerializer
 
     def create(self, request, *args, **kwargs):
-        instance_id = self.kwargs.get('pk')
-        instance = ProcessInstance.objects.select_related('process').filter(pk=instance_id).first()
+        instance = ProcessInstance.objects.select_related('process').filter(pk=self.kwargs.get('pk')).first()
         if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
 
         require_guest_token_if_needed(request, instance)
 
         step_id = request.data.get('step')
-        form_response_id = request.data.get('form_response')
-        if not step_id or not form_response_id:
-            raise ValidationError({'detail': 'step and form_response are required.'})
-
-        step = ProcessStep.objects.select_related('form', 'process').filter(pk=step_id).first()
+        if not step_id:
+            raise ValidationError({'detail': 'step is required.'})
+        step = ProcessStep.objects.select_related('process', 'form').filter(pk=step_id).first()
         if not step:
             raise ValidationError({'detail': 'Step not found.'})
         if step.process_id != instance.process_id:
-            raise ValidationError({'detail': 'Step does not belong to this process instance.'})
+            raise ValidationError({'detail': 'Step does not belong to the instance process.'})
 
         if StepSubmission.objects.filter(instance=instance, step=step).exists():
-            raise ValidationError({'detail': 'This step is already submitted for this instance.'})
+            raise ValidationError({'detail': 'This step already submitted for this instance.'})
 
         ensure_form_password_if_private(step.form, request)
 
-        from apps.forms.models import Response as FormResponse
-        fr = FormResponse.objects.select_related('form', 'user').filter(pk=form_response_id).first()
-        if not fr:
-            raise ValidationError({'detail': 'form_response not found.'})
-        if fr.form_id != step.form_id:
-            raise ValidationError({'detail': 'form_response does not belong to the step form.'})
-        if request.user.is_authenticated and fr.user_id and fr.user_id != request.user.id:
-            raise ValidationError({'detail': 'form_response belongs to a different user.'})
+        fr = build_form_response_from_answers_or_skip(step.form, request)
 
-        StepSubmission.objects.create(instance=instance, step=step, form_response=fr)
+        payload = {'instance': instance.id, 'step': step.id, 'form_response': fr.id}
+        serializer = self.get_serializer(data=payload)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
 
+        instance.refresh_from_db()
         instance.mark_completed_if_done()
 
         return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
