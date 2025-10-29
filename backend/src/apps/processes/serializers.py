@@ -2,7 +2,7 @@ from django.db.models import Max
 from rest_framework import serializers
 from apps.users.models import Profile
 from .models import Process, ProcessStep, ProcessInstance, StepSubmission
-from apps.forms.models import Form
+from apps.forms.models import Form, Field
 
 
 class StepInlineWriteSerializer(serializers.Serializer):
@@ -147,3 +147,24 @@ class FreeStepSerializer(serializers.ModelSerializer):
             return False
         return StepSubmission.objects.filter(instance=instance, step=obj).exists()
 
+class FieldReadSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Field
+        fields = [
+            'id', 'question', 'field_type', 'required', 'position',
+            'options', 'max_length', 'min_value', 'max_value'
+        ]
+
+class FormReadSerializer(serializers.ModelSerializer):
+    fields = FieldReadSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Form
+        fields = ['id', 'name', 'description', 'access', 'slug', 'fields']
+
+class StepWithFormSerializer(serializers.ModelSerializer):
+    form = FormReadSerializer(read_only=True)
+
+    class Meta:
+        model = ProcessStep
+        fields = ['id', 'title', 'order', 'allow_skip', 'form']

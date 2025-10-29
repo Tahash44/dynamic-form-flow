@@ -1,5 +1,7 @@
 import secrets
 from datetime import timedelta, datetime
+
+from django.db.models import Prefetch
 from rest_framework_simplejwt.tokens import AccessToken
 from django.utils import timezone
 from rest_framework import status, filters
@@ -12,7 +14,8 @@ import pytz
 from .models import Process, ProcessInstance, ProcessStep, StepSubmission
 from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
-    ProcessWriteSerializer, ProcessStepWriteSerializer, FreeStepSerializer
+    ProcessWriteSerializer, ProcessStepWriteSerializer, FreeStepSerializer, StepWithFormSerializer
+from ..forms.models import Field
 
 
 # from .serializers import (
@@ -130,8 +133,8 @@ class StartProcessView(CreateAPIView):
 
 
 class CurrentStepView(RetrieveAPIView):
-    queryset = ProcessInstance.objects.select_related('current_step__form', 'process')
-    serializer_class = ProcessStepSerializer
+    queryset = (ProcessInstance.objects.select_related('current_step__form', 'process').prefetch_related(Prefetch('current_step__form__fields', queryset=Field.objects.order_by('position'))))
+    serializer_class = StepWithFormSerializer
     permission_classes = [AllowAny]
 
     def retrieve(self, request, *args, **kwargs):
