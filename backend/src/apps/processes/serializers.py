@@ -3,8 +3,8 @@ from rest_framework import serializers
 from apps.users.models import Profile
 from .models import Process, ProcessStep, ProcessInstance, StepSubmission
 from apps.forms.models import Form, Field
-from ..forms.serializer import FormSerializer
-
+from apps.forms.serializer import FormSerializer
+from apps.categories.models import ProcessCategory
 
 class StepSubmitPayloadSerializer(serializers.Serializer):
     answers = serializers.DictField(child=serializers.CharField(), required=False)
@@ -25,12 +25,16 @@ class ProcessStepSerializer(serializers.ModelSerializer):
 
 class ProcessSerializer(serializers.ModelSerializer):
     steps = ProcessStepSerializer(many=True, read_only=True)
+    categories = serializers.SerializerMethodField()
 
     class Meta:
         model = Process
-        fields = ['id', 'title', 'type', 'is_active', 'created_at', 'steps']
+        fields = ['id', 'title', 'type', 'is_active', 'created_at', 'steps', 'categories']
         read_only_fields = ['id', 'created_at']
 
+    def get_categories(self, obj):
+        qs = ProcessCategory.objects.filter(process=obj)
+        return [{'id': c.id, 'name': c.name} for c in qs]
 
 class ProcessInstanceSerializer(serializers.ModelSerializer):
     started_by = serializers.PrimaryKeyRelatedField(read_only=True)
@@ -56,10 +60,11 @@ class StepSubmissionSerializer(serializers.ModelSerializer):
 
 class ProcessWriteSerializer(serializers.ModelSerializer):
     steps = StepInlineWriteSerializer(many=True, required=False)
+    category_ids = serializers.PrimaryKeyRelatedField(many=True,queryset=ProcessCategory.objects.all(),required=False,write_only=True)
 
     class Meta:
         model = Process
-        fields = ['title', 'type', 'is_active', 'steps']
+        fields = ['title', 'type', 'is_active', 'steps', 'category_ids']
 
     def validate(self, attrs):
         if 'type' not in attrs:
@@ -86,7 +91,13 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
             or Profile.objects.create(user=request.user)
 
         steps_data = validated_data.pop('steps', [])
+        categories = validated_data.pop('category_ids', [])
+
         process = Process.objects.create(owner=owner_profile, **validated_data)
+
+        if categories:
+            for cat in categories:
+                cat.process.add(process)
 
         next_order = 1
         for item in steps_data:
@@ -98,6 +109,25 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
             next_order = max(next_order + 1, order + 1)
 
         return process
+
+    def update(self, instance, validated_data):
+        categories = validated_data.pop('category_ids', None)
+        steps_data = validated_data.pop('steps', None)
+
+        instance.title = validated_data.get('title', instance.title)
+        instance.type = validated_data.get('type', instance.type)
+        instance.is_active = validated_data.get('is_active', instance.is_active)
+        instance.save()
+
+        if categories is not None:
+            old_cats = ProcessCategory.objects.filter(process=instance)
+            for c in old_cats:
+                c.process.remove(instance)
+            for c in categories:
+                c.process.add(instance)
+
+        return instance
+
 
 class ProcessStepWriteSerializer(serializers.ModelSerializer):
     class Meta:

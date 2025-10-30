@@ -8,6 +8,8 @@ from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView,
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.exceptions import ValidationError
+from rest_framework.throttling import ScopedRateThrottle
+
 from .models import Process, ProcessInstance, ProcessStep, StepSubmission
 from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
@@ -124,6 +126,8 @@ class ProcessFreeListView(ListAPIView):
 class StartProcessView(CreateAPIView):
     serializer_class = ProcessInstanceSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'start_process'
 
     def create(self, request, *args, **kwargs):
         pk = self.kwargs.get('pk')
@@ -173,6 +177,8 @@ class CurrentStepView(RetrieveAPIView):
     queryset = ProcessInstance.objects.none()
     serializer_class = CurrentStepSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'current_step'
 
     def get_object(self):
         instance = (
@@ -199,6 +205,8 @@ class CurrentStepView(RetrieveAPIView):
 class SubmitStepView(CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = StepSubmitPayloadSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'submit_step'
 
     def create(self, request, *args, **kwargs):
         instance = (
@@ -298,6 +306,8 @@ class StepRUDView(RetrieveUpdateDestroyAPIView):
 class StartFreeProcessView(CreateAPIView):
     serializer_class = ProcessInstanceSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'start_process'
 
     def create(self, request, *args, **kwargs):
         pk = self.kwargs.get('pk')
@@ -337,6 +347,8 @@ class CurrentStepsFreeView(ListAPIView):
     queryset = ProcessStep.objects.none()
     serializer_class = FreeStepSerializer
     permission_classes = [AllowAny]
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'current_step'
 
     def get_instance(self):
         instance = (
@@ -391,6 +403,8 @@ class CurrentStepsFreeView(ListAPIView):
 class SubmitFreeView(CreateAPIView):
     permission_classes = [AllowAny]
     serializer_class = StepSubmitPayloadSerializer
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = 'submit_step'
 
     def create(self, request, *args, **kwargs):
         instance = (ProcessInstance.objects.select_related('process').filter(pk=self.kwargs.get('pk')).first())
