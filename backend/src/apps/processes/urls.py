@@ -7,7 +7,7 @@ from .views import StartProcessView, CurrentStepView, SubmitStepView, ProcessLis
 urlpatterns = [
     path('', ProcessListView.as_view(), name='process-list'),
     path('free/', ProcessFreeListView.as_view(), name='free-process-list'),
-    path('sequ/', ProcessSequentialListView.as_view(), name='free-process-list'),
+    path('sequ/', ProcessSequentialListView.as_view(), name='sequ-process-list'),
 
 
     path('list/', ProcessListCreateView.as_view(), name='process-list-create'),

@@ -83,12 +83,12 @@ REST_FRAMEWORK = {
     ],
 
     'DEFAULT_THROTTLE_RATES': {
-        'start_process': '10/minute',
-        'current_step': '35/minute',
-        'submit_step': '35/minute',
+        'start_process': '1100/minute',
+        'current_step': '3500/minute',
+        'submit_step': '3500/minute',
 
-        'user': '100/minute',
-        'anon': '60/minute',
+        'user': '1000/minute',
+        'anon': '600/minute',
     },
 }
 

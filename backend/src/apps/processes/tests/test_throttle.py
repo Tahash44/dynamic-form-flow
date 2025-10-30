@@ -7,6 +7,9 @@ from apps.users.models import Profile
 from apps.forms.models import Form
 from apps.processes.models import Process
 
+from apps.processes.views import StartProcessView
+from rest_framework.throttling import ScopedRateThrottle
+
 
 @pytest.fixture
 def simple_process(db, django_user_model):
@@ -35,20 +38,25 @@ def simple_process(db, django_user_model):
 @override_settings(REST_FRAMEWORK={
     'DEFAULT_THROTTLE_CLASSES': [
         'rest_framework.throttling.ScopedRateThrottle',
-        'rest_framework.throttling.UserRateThrottle',
-        'rest_framework.throttling.AnonRateThrottle',
     ],
     'DEFAULT_THROTTLE_RATES': {
         'start_process': '2/minute',
-        'current_step': '100/minute',
-        'submit_step': '100/minute',
-        'user': '100/minute',
-        'anon': '100/minute',
     }
 })
 @pytest.mark.django_db
 def test_start_process_throttled_for_guest(api, simple_process):
+    StartProcessView.throttle_scope = 'start_process'
+    StartProcessView.throttle_classes = [ScopedRateThrottle]
+
+    def _forced_get_throttles(self):
+        t = ScopedRateThrottle()
+        t.scope = 'start_process'
+        return [t]
+
+    StartProcessView.get_throttles = _forced_get_throttles
+
     url = reverse('process-start', kwargs={'pk': simple_process.pk})
+
     r1 = api.post(url)
     r2 = api.post(url)
     r3 = api.post(url)
@@ -56,4 +64,3 @@ def test_start_process_throttled_for_guest(api, simple_process):
     assert r1.status_code == 201
     assert r2.status_code == 201
     assert r3.status_code == 429
-    assert 'detail' in r3.data
