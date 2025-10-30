@@ -1,7 +1,6 @@
 import secrets
 from datetime import timedelta
 
-from django.db.models import Prefetch
 from django.utils import timezone
 from rest_framework import status, filters
 from rest_framework.generics import ListAPIView, RetrieveAPIView, CreateAPIView, ListCreateAPIView, \
@@ -12,8 +11,7 @@ from rest_framework.exceptions import ValidationError
 from .models import Process, ProcessInstance, ProcessStep, StepSubmission
 from .permissions import IsOwnerOrReadOnly
 from .serializers import ProcessSerializer, ProcessStepSerializer, ProcessInstanceSerializer, StepSubmissionSerializer, \
-    ProcessWriteSerializer, ProcessStepWriteSerializer, FreeStepSerializer, StepWithFormSerializer
-from ..forms.models import Field
+    ProcessWriteSerializer, ProcessStepWriteSerializer, FreeStepSerializer, CurrentStepSerializer, StepSubmitPayloadSerializer
 from apps.forms.models import Response as FormResponse, Answer as FormAnswer, Field as FormField
 from django.core.cache import cache
 
@@ -26,14 +24,24 @@ def get_form_password_from_request(request):
     )
 
 
-def ensure_form_password_if_private(form, request):
+def ensure_form_password_if_private(form, request, provided=None):
     if getattr(form, 'access', 'public') != 'private':
         return
-    provided = get_form_password_from_request(request)
-    real = getattr(form, 'password', '') or ''
-    if provided != real:
-        raise ValidationError({'detail': 'Form is private. Password required or incorrect.'})
 
+    if provided is None:
+        provided = (
+            request.data.get('password')
+            or request.query_params.get('password')
+            or request.headers.get('X-Form-Password')
+        )
+
+    real_password = (getattr(form, 'password', '') or '').strip()
+
+    if not real_password:
+        raise ValidationError({'detail': 'Form is private but has no password set.'})
+
+    if provided != real_password:
+        raise ValidationError({'detail': 'Incorrect form password.'})
 
 def get_instance_token_from_request(request):
     return (
@@ -162,30 +170,43 @@ class StartProcessView(CreateAPIView):
 
 
 class CurrentStepView(RetrieveAPIView):
-    queryset = (ProcessInstance.objects.select_related('current_step__form', 'process').prefetch_related(Prefetch('current_step__form__fields', queryset=Field.objects.order_by('position'))))
-    serializer_class = StepWithFormSerializer
+    queryset = ProcessInstance.objects.none()
+    serializer_class = CurrentStepSerializer
     permission_classes = [AllowAny]
+
+    def get_object(self):
+        instance = (
+            ProcessInstance.objects
+            .select_related('current_step__form', 'process')
+            .prefetch_related('current_step__form__fields')
+            .filter(pk=self.kwargs['pk'])
+            .first()
+        )
+        if not instance:
+            raise ValidationError({'detail': 'Instance not found.'})
+        require_guest_token_if_needed(self.request, instance)
+        return instance
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
-        require_guest_token_if_needed(request, instance)
-
         step = instance.current_step
         if not step:
             return Response({'detail': 'Process completed.'})
-
         ensure_form_password_if_private(step.form, request)
-        return Response(self.get_serializer(step).data)
-
+        data = self.get_serializer(step).data
+        return Response(data)
 
 class SubmitStepView(CreateAPIView):
-    serializer_class = StepSubmissionSerializer
     permission_classes = [AllowAny]
+    serializer_class = StepSubmitPayloadSerializer
 
     def create(self, request, *args, **kwargs):
-        instance = ProcessInstance.objects.select_related('current_step__form', 'process').filter(
-            pk=self.kwargs.get('pk')
-        ).first()
+        instance = (
+            ProcessInstance.objects
+            .select_related('current_step__form', 'process')
+            .filter(pk=self.kwargs.get('pk'))
+            .first()
+        )
         if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
 
@@ -195,21 +216,40 @@ class SubmitStepView(CreateAPIView):
         if not step:
             raise ValidationError({'detail': 'Process already completed.'})
 
-        ensure_form_password_if_private(step.form, request)
+        payload_serializer = self.get_serializer(data=request.data)
+        payload_serializer.is_valid(raise_exception=True)
+        answers = payload_serializer.validated_data.get('answers') or {}
+        provided_password = payload_serializer.validated_data.get('password') or ''
 
-        fr = build_form_response_from_answers_or_skip(step.form, request)
+        ensure_form_password_if_private(step.form, request, provided_password)
 
-        payload = {'instance': instance.id, 'step': step.id, 'form_response': fr.id}
-        serializer = self.get_serializer(data=payload)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        form_response = FormResponse.objects.create(
+            form=step.form,
+            user=request.user if request.user.is_authenticated else None,
+        )
 
-        instance.refresh_from_db()
+        for field_id, value in answers.items():
+            field_obj = FormField.objects.filter(pk=field_id, form=step.form).first()
+            if not field_obj:
+                raise ValidationError({'detail': f'Field {field_id} not found on this form.'})
+
+            FormAnswer.objects.create(
+                response=form_response,
+                field=field_obj,
+                value=value,
+            )
+
+        StepSubmission.objects.create(
+            instance=instance,
+            step=step,
+            form_response=form_response,
+        )
+
         instance.advance_after_submission(step)
+        instance.refresh_from_db()
 
-        return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
-
-
+        out_ser = ProcessInstanceSerializer(instance)
+        return Response(out_ser.data, status=status.HTTP_201_CREATED)
 class ProcessListCreateView(ListCreateAPIView):
     queryset = Process.objects.filter(type=Process.SEQUENTIAL)
     permission_classes = [IsAuthenticated]
@@ -292,37 +332,68 @@ class StartFreeProcessView(CreateAPIView):
             return Response({'instance': data, 'access_token': access_token}, status=status.HTTP_201_CREATED)
         return Response(data, status=status.HTTP_201_CREATED)
 
+
 class CurrentStepsFreeView(ListAPIView):
+    queryset = ProcessStep.objects.none()
     serializer_class = FreeStepSerializer
     permission_classes = [AllowAny]
 
-    def get_queryset(self):
-        instance_id = self.kwargs.get('pk')
-        instance = ProcessInstance.objects.select_related('process').filter(pk=instance_id).first()
+    def get_instance(self):
+        instance = (
+            ProcessInstance.objects
+            .select_related('process')
+            .filter(pk=self.kwargs['pk'])
+            .first()
+        )
         if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
 
         require_guest_token_if_needed(self.request, instance)
 
-        submitted_ids = StepSubmission.objects.filter(instance=instance).values_list('step_id', flat=True)
-        self._instance = instance
-        self._submitted_ids = set(submitted_ids)
-        return ProcessStep.objects.filter(process=instance.process).exclude(id__in=self._submitted_ids).order_by('order')
+        if instance.process.type != Process.FREE_FLOW:
+            raise ValidationError({'detail': 'This endpoint is only for free-flow processes.'})
+
+        return instance
 
     def list(self, request, *args, **kwargs):
-        qs = self.get_queryset()
-        ser = self.get_serializer(qs, many=True, context={
-            'instance': self._instance,
-            'submitted_step_ids': self._submitted_ids
-        })
-        return Response(ser.data)
+        instance = self.get_instance()
+        submitted_ids = set(
+            StepSubmission.objects
+            .filter(instance=instance)
+            .values_list('step_id', flat=True)
+        )
+
+        steps = (
+            ProcessStep.objects
+            .filter(process=instance.process)
+            .exclude(id__in=submitted_ids)
+            .select_related('form')
+            .prefetch_related('form__fields')
+            .order_by('order')
+        )
+
+        for step in steps:
+            ensure_form_password_if_private(step.form, request)
+
+        serializer = self.get_serializer(
+            steps,
+            many=True,
+            context={
+                'instance': instance,
+                'submitted_step_ids': submitted_ids,
+            }
+        )
+        if not steps.exists():
+            return Response({'detail': 'All steps completed.'})
+
+        return Response(serializer.data)
 
 class SubmitFreeView(CreateAPIView):
     permission_classes = [AllowAny]
-    serializer_class = StepSubmissionSerializer
+    serializer_class = StepSubmitPayloadSerializer
 
     def create(self, request, *args, **kwargs):
-        instance = ProcessInstance.objects.select_related('process').filter(pk=self.kwargs.get('pk')).first()
+        instance = (ProcessInstance.objects.select_related('process').filter(pk=self.kwargs.get('pk')).first())
         if not instance:
             raise ValidationError({'detail': 'Instance not found.'})
 
@@ -331,28 +402,52 @@ class SubmitFreeView(CreateAPIView):
         step_id = request.data.get('step')
         if not step_id:
             raise ValidationError({'detail': 'step is required.'})
-        step = ProcessStep.objects.select_related('process', 'form').filter(pk=step_id).first()
+
+        step = (ProcessStep.objects.select_related('process', 'form').filter(pk=step_id).first())
         if not step:
             raise ValidationError({'detail': 'Step not found.'})
-        if step.process_id != instance.process_id:
-            raise ValidationError({'detail': 'Step does not belong to the instance process.'})
 
+        if step.process_id != instance.process_id:
+            raise ValidationError({'detail': 'Step does not belong to this process instance.'})
         if StepSubmission.objects.filter(instance=instance, step=step).exists():
             raise ValidationError({'detail': 'This step already submitted for this instance.'})
 
-        ensure_form_password_if_private(step.form, request)
+        payload_ser = self.get_serializer(data=request.data)
+        payload_ser.is_valid(raise_exception=True)
+        answers = payload_ser.validated_data.get('answers') or {}
+        provided_password = payload_ser.validated_data.get('password') or ''
+        want_skip = payload_ser.validated_data.get('skip', False)
 
-        fr = build_form_response_from_answers_or_skip(step.form, request)
+        ensure_form_password_if_private(step.form, request, provided=provided_password)
 
-        payload = {'instance': instance.id, 'step': step.id, 'form_response': fr.id}
-        serializer = self.get_serializer(data=payload)
-        serializer.is_valid(raise_exception=True)
-        serializer.save()
+        if want_skip and not getattr(step, 'allow_skip', False):
+            raise ValidationError({'detail': 'This step cannot be skipped.'})
+
+        if want_skip:
+            form_response = FormResponse.objects.create(
+                form=step.form,
+                user=request.user if request.user.is_authenticated else None,
+            )
+        else:
+            form_response = FormResponse.objects.create(
+                form=step.form,
+                user=request.user if request.user.is_authenticated else None,
+            )
+
+            for field_id, value in answers.items():
+                field_obj = (FormField.objects.filter(pk=field_id, form=step.form).first())
+                if not field_obj:
+                    raise ValidationError({'detail': f'Field {field_id} not found on this form.'})
+
+                FormAnswer.objects.create(response=form_response,field=field_obj,value=value,)
+
+        StepSubmission.objects.create(instance=instance,step=step,form_response=form_response,)
 
         instance.refresh_from_db()
         instance.mark_completed_if_done()
 
-        return Response(ProcessInstanceSerializer(instance).data, status=status.HTTP_201_CREATED)
+        out = ProcessInstanceSerializer(instance).data
+        return Response(out, status=status.HTTP_201_CREATED)
 
 class SkipStepView(CreateAPIView):
     serializer_class = ProcessInstanceSerializer

@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import Form, Field
+from .models import Form, Field, Response, Answer
 
 
 class FieldInline(admin.TabularInline):
@@ -24,3 +24,16 @@ class FieldAdmin(admin.ModelAdmin):
     list_filter = ('field_type', 'required')
     search_fields = ('question',)
     ordering = ('form', 'position')
+
+@admin.register(Response)
+class ResponseAdmin(admin.ModelAdmin):
+    list_display = ('id', 'form', 'user', 'submitted_at')
+    list_filter = ('user', 'submitted_at')
+    readonly_fields = ('submitted_at',)
+    ordering = ('-submitted_at',)
+
+@admin.register(Answer)
+class AnswerAdmin(admin.ModelAdmin):
+    list_display = ('id', 'response', 'field', 'value')
+    list_filter = ('response',)
+    readonly_fields = ('value',)

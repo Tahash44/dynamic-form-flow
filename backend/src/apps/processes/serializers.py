@@ -3,6 +3,12 @@ from rest_framework import serializers
 from apps.users.models import Profile
 from .models import Process, ProcessStep, ProcessInstance, StepSubmission
 from apps.forms.models import Form, Field
+from ..forms.serializer import FormSerializer
+
+
+class StepSubmitPayloadSerializer(serializers.Serializer):
+    answers = serializers.DictField(child=serializers.CharField(), required=False)
+    password = serializers.CharField(required=False, allow_blank=True)
 
 
 class StepInlineWriteSerializer(serializers.Serializer):
@@ -132,6 +138,7 @@ class ProcessStepWriteSerializer(serializers.ModelSerializer):
 
 
 class FreeStepSerializer(serializers.ModelSerializer):
+    form = FormSerializer(read_only=True)
     is_submitted = serializers.SerializerMethodField()
 
     class Meta:
@@ -155,16 +162,52 @@ class FieldReadSerializer(serializers.ModelSerializer):
             'options', 'max_length', 'min_value', 'max_value'
         ]
 
-class FormReadSerializer(serializers.ModelSerializer):
-    fields = FieldReadSerializer(many=True, read_only=True)
+class FormFieldInlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Field
+        fields = [
+            'id',
+            'question',
+            'field_type',
+            'required',
+            'position',
+            'options',
+        ]
+
+
+class FormInlineSerializer(serializers.ModelSerializer):
+    fields = FormFieldInlineSerializer(many=True, read_only=True)
 
     class Meta:
         model = Form
-        fields = ['id', 'name', 'description', 'access', 'slug', 'fields']
+        fields = [
+            'id',
+            'name',
+            'description',
+            'access',
+            'slug',
+            'fields',
+        ]
 
-class StepWithFormSerializer(serializers.ModelSerializer):
-    form = FormReadSerializer(read_only=True)
+class CurrentStepSerializer(serializers.ModelSerializer):
+    form = FormInlineSerializer(read_only=True)
 
     class Meta:
         model = ProcessStep
         fields = ['id', 'title', 'order', 'allow_skip', 'form']
+
+
+class AnswerInputSerializer(serializers.Serializer):
+    field_id = serializers.IntegerField()
+    value = serializers.CharField(allow_blank=True)
+
+class StepSubmitSimpleSerializer(serializers.Serializer):
+    answers = AnswerInputSerializer(many=True)
+    password = serializers.CharField(required=False, allow_blank=True, write_only=True)
+
+class StepSubmitJSONSerializer(serializers.Serializer):
+    answers = serializers.DictField(
+        child=serializers.CharField(allow_blank=True),
+        help_text='dict of {field_id: value}'
+    )
+    password = serializers.CharField(required=False, allow_blank=True)
