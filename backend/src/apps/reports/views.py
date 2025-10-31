@@ -13,7 +13,7 @@ class FormReportView(generics.RetrieveAPIView):
     queryset = Form.objects.all()
     serializer_class = FormReportSerializer
     permission_classes = [permissions.IsAuthenticated]
-    lookup_field = 'form_id'
+    lookup_url_kwarg = 'form_id'
 
     def get_object(self):
         form = super().get_object()

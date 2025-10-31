@@ -1,6 +1,7 @@
 from rest_framework import serializers
 from apps.forms.models import Form, Response, Answer
-from django.db.models import Avg, Min, Max, Count
+from django.db.models import Avg, Min, Max, Count, FloatField
+from django.db.models.functions import Cast
 
 class FormReportSerializer(serializers.ModelSerializer):
     report = serializers.SerializerMethodField()
@@ -16,10 +17,13 @@ class FormReportSerializer(serializers.ModelSerializer):
             stats = {}
 
             if field.field_type == 'number':
-                stats = answers.aggregate(
-                    average=Avg('value'),
-                    min=Min('value'),
-                    max=Max('value'),
+                stats = answers.annotate(
+                    
+                    numeric_value=Cast('value', FloatField())  
+                ).aggregate(
+                    average=Avg('numeric_value'),
+                    min=Min('numeric_value'),
+                    max=Max('numeric_value'),
                     count=Count('id')
                 )
 
