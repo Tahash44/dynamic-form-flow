@@ -14,6 +14,7 @@ from pathlib import Path
 from decouple import config
 import environ
 from datetime import timedelta
+from celery.schedules import crontab
 
 env = environ.Env()
 
@@ -220,3 +221,14 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+
+CELERY_BEAT_SCHEDULE = {
+    'weekly_report': {
+        'task': 'reports.tasks.send_periodic_report',
+        'schedule': crontab(hour=9, minute=0, day_of_week=1),
+    },
+    'monthly_report': {
+        'task': 'reports.tasks.send_periodic_report',
+        'schedule': crontab(hour=9, minute=0, day_of_month=1),
+    },
+}
