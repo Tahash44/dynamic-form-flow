@@ -18,7 +18,6 @@ class FormReportSerializer(serializers.ModelSerializer):
 
             if field.field_type == 'number':
                 stats = answers.annotate(
-                    
                     numeric_value=Cast('value', FloatField())  
                 ).aggregate(
                     average=Avg('numeric_value'),
