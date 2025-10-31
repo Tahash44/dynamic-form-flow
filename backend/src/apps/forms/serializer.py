@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import Form, Field, Answer, Response
+from ..categories.models import FormCategory
 
 
 class FieldSerializer(serializers.ModelSerializer):
@@ -11,6 +12,13 @@ class FieldSerializer(serializers.ModelSerializer):
 class FormSerializer(serializers.ModelSerializer):
     fields = FieldSerializer(many=True, read_only=True)
     categories = serializers.SerializerMethodField()
+    category_ids = serializers.PrimaryKeyRelatedField(
+        source='categories',
+        many=True,
+        queryset=FormCategory.objects.all(),
+        write_only=True,
+        required=False
+    )
 
     class Meta:
         model = Form
@@ -26,6 +34,19 @@ class FormSerializer(serializers.ModelSerializer):
             for category in obj.categories.all()
         ]
 
+    def create(self, validated_data):
+        categories = validated_data.pop('categories', [])
+        form = super().create(validated_data)
+        if categories:
+            form.categories.set(categories)
+        return form
+
+    def update(self, instance, validated_data):
+        categories = validated_data.pop('categories', None)
+        form = super().update(instance, validated_data)
+        if categories is not None:
+            form.categories.set(categories)
+        return form
 
 
 class AnswerSerializer(serializers.ModelSerializer):
