@@ -49,6 +49,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'rest_framework_swagger',
+    'channels',
     "config.api",
     "apps.users",
     "apps.forms",
@@ -232,3 +233,5 @@ CELERY_BEAT_SCHEDULE = {
         'schedule': crontab(hour=9, minute=0, day_of_month=1),
     },
 }
+
+ASGI_APPLICATION = 'config.asgi.application'
