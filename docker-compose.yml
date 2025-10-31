@@ -19,6 +19,9 @@ services:
       - DJANGO_DB_USER=postgres
       - DJANGO_DB_PASSWORD=postgres
       - DJANGO_DB_PORT=5432
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - REDIS_URL=redis://redis:6379/0
 
   db:
     image: docker.arvancloud.ir/postgres:15
@@ -40,7 +43,47 @@ services:
     ports:
       - "6379:6379"
 
+  celery_worker:
+    build: .
+    container_name: celery_worker
+    command: celery -A config worker -l info
+    volumes:
+      - ./backend/src:/app
+    env_file:
+      - .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DJANGO_DB_HOST=db
+      - DJANGO_DB_NAME=postgres
+      - DJANGO_DB_USER=postgres
+      - DJANGO_DB_PASSWORD=postgres
+      - DJANGO_DB_PORT=5432
+    depends_on:
+      - db
+      - redis
+    restart: always
 
+  celery_beat:
+    build: .
+    container_name: celery_beat
+    command: celery -A config beat -l info
+    volumes:
+      - ./backend/src:/app
+    env_file:
+      - .env
+    environment:
+      - CELERY_BROKER_URL=redis://redis:6379/0
+      - CELERY_RESULT_BACKEND=redis://redis:6379/0
+      - DJANGO_DB_HOST=db
+      - DJANGO_DB_NAME=postgres
+      - DJANGO_DB_USER=postgres
+      - DJANGO_DB_PASSWORD=postgres
+      - DJANGO_DB_PORT=5432
+    depends_on:
+      - db
+      - redis
+    restart: always
 
 volumes:
   postgres_data:
