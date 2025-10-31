@@ -28,5 +28,5 @@ class FormStatsView(generics.RetrieveAPIView):
     def get_object(self):
         form = super().get_object()
         if form.created_by != self.request.user:
-            raise PermissionDenied("شما اجازه مشاهده آمار این فرم را ندارید.")
+            raise PermissionDenied("You don't have access to create report for this form.")
         return form
