@@ -23,6 +23,7 @@ class FormStatsView(generics.RetrieveAPIView):
     queryset = Form.objects.all()
     serializer_class = FormStatsSerializer
     permission_classes = [permissions.IsAuthenticated]
+    lookup_field = 'form_id'
 
     def get_object(self):
         form = super().get_object()
