@@ -54,3 +54,28 @@ class FormStatsSerializer(serializers.ModelSerializer):
 
     def get_responses_count(self, obj):
         return Response.objects.filter(form=obj).count()
+
+
+class AnswerReportSerializer(serializers.ModelSerializer):
+    question = serializers.CharField(source='field.question', read_only=True)
+
+    class Meta:
+        model = Answer
+        fields = ['question', 'value']
+
+
+class ResponseReportSerializer(serializers.ModelSerializer):
+    user = serializers.CharField(source='user.username', default=None)
+    answers = AnswerReportSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Response
+        fields = ['id', 'user', 'submitted_at', 'answers']
+
+
+class FormResponsesReportSerializer(serializers.ModelSerializer):
+    responses = ResponseReportSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = Form
+        fields = ['id', 'name', 'responses']
