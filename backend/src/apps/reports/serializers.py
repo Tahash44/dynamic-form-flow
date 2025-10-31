@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from forms.models import Form, Response, Answer
+from apps.forms.models import Form, Response, Answer
 from django.db.models import Avg, Min, Max, Count
 
 class FormReportSerializer(serializers.ModelSerializer):

@@ -1,6 +1,6 @@
 from django.db.models.signals import post_save
 from django.dispatch import receiver
-from forms.models import Response
+from apps.forms.models import Response
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from reports.serializers import FormReportSerializer

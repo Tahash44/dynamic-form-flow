@@ -1,7 +1,7 @@
 import json
 from channels.generic.websocket import AsyncWebsocketConsumer
-from forms.models import Form
-from reports.serializers import FormReportSerializer
+from apps.forms.models import Form
+from apps.reports.serializers import FormReportSerializer
 from channels.db import database_sync_to_async
 
 class FormReportConsumer(AsyncWebsocketConsumer):

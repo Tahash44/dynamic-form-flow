@@ -1,5 +1,5 @@
 from django.urls import path
-from reports.views import (
+from apps.reports.views import (
     FormReportView, 
     FormStatsView,
     FormResponsesReportView
