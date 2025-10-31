@@ -7,7 +7,7 @@ urlpatterns = [
     path('users/', include('apps.users.urls')),
     path('processes/', include('apps.processes.urls')),
     path('categories/', include('apps.categories.urls')),
+    path('reports/', include('apps.reports.urls')),
     path('token/', TokenObtainPairView.as_view(), name='token_obtain_pair'),
     path('token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
-
 ]
