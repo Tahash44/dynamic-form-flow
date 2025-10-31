@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from forms.models import Form, Field, Response, Answer
+from forms.models import Form, Response, Answer
 from django.db.models import Avg, Min, Max, Count
 
 class FormReportSerializer(serializers.ModelSerializer):
@@ -43,3 +43,14 @@ class FormReportSerializer(serializers.ModelSerializer):
                 })
 
         return report
+
+
+class FormStatsSerializer(serializers.ModelSerializer):
+    responses_count = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Form
+        fields = ['id', 'name', 'views_count', 'responses_count', 'created_at']
+
+    def get_responses_count(self, obj):
+        return Response.objects.filter(form=obj).count()
