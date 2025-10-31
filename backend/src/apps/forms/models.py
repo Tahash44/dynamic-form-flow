@@ -16,6 +16,7 @@ class Form(models.Model):
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField(max_length=8, unique=True)
+    views_count = models.PositiveIntegerField(default=0)
 
     def clean(self):
         from django.core.exceptions import ValidationError

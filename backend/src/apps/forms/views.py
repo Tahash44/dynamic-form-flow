@@ -1,6 +1,8 @@
 from django.utils import timezone
 from rest_framework import viewsets
 
+from rest_framework.response import Response
+
 from .models import Form, Field, Response
 from .serializer import FormSerializer, FieldSerializer, ResponseSerializer
 
@@ -21,6 +23,13 @@ class FormViewSet(viewsets.ModelViewSet):
         instance.is_deleted = True
         instance.deleted_at = timezone.now()
         instance.save()
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        instance.views_count = (instance.views_count or 0) + 1
+        instance.save(update_fields=['views_count'])
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data) 
 
 
 class ResponseViewSet(viewsets.ModelViewSet):
