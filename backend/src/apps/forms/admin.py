@@ -1,6 +1,5 @@
 from django.contrib import admin
-from .models import Form, Field
-from ..categories.models import FormCategory
+from .models import Form, Field, Response, Answer
 
 
 class FieldInline(admin.TabularInline):
@@ -12,14 +11,11 @@ class FieldInline(admin.TabularInline):
 
 @admin.register(Form)
 class FormAdmin(admin.ModelAdmin):
-    list_display = ('name', 'created_by', 'is_public', 'created_at')
-    list_filter = ('is_public', 'created_at', 'is_deleted')
-    search_fields = ('name', 'description')
+    list_display = ['id', 'name', 'access', 'created_by', 'created_at', 'slug']
+    list_filter = ('access', 'created_at')
+    search_fields = ['name', 'description', 'slug', 'created_by__username']
     inlines = [FieldInline]
     ordering = ('-created_at',)
-
-    def get_queryset(self, request):
-        return Form.all_objects.all()
 
 
 @admin.register(Field)
@@ -29,7 +25,15 @@ class FieldAdmin(admin.ModelAdmin):
     search_fields = ('question',)
     ordering = ('form', 'position')
 
+@admin.register(Response)
+class ResponseAdmin(admin.ModelAdmin):
+    list_display = ('id', 'form', 'user', 'submitted_at')
+    list_filter = ('user', 'submitted_at')
+    readonly_fields = ('submitted_at',)
+    ordering = ('-submitted_at',)
 
-@admin.register(FormCategory)
-class CategoryAdmin(admin.ModelAdmin):
-    pass
+@admin.register(Answer)
+class AnswerAdmin(admin.ModelAdmin):
+    list_display = ('id', 'response', 'field', 'value')
+    list_filter = ('response',)
+    readonly_fields = ('value',)

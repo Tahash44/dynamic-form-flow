@@ -14,13 +14,15 @@ from pathlib import Path
 from decouple import config
 import environ
 from datetime import timedelta
+from celery.schedules import crontab
 
+from celery.schedules import crontab
 
 env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+environ.Env.read_env(os.path.join(BASE_DIR, '../../.env'))
 
 
 # Quick-start development settings - unsuitable for production
@@ -45,10 +47,11 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     "rest_framework",
-    'rest_framework_simplejwt.token_blacklist',
     "drf_yasg",
+    'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'rest_framework_swagger',
+    'channels',
     "config.api",
     "apps.users",
     "apps.forms",
@@ -74,6 +77,21 @@ REST_FRAMEWORK = {
     ],
     "DEFAULT_PAGINATION_CLASS": "rest_framework.pagination.PageNumberPagination",
     "PAGE_SIZE": 10,
+
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.ScopedRateThrottle',
+        'rest_framework.throttling.UserRateThrottle',
+        'rest_framework.throttling.AnonRateThrottle',
+    ],
+
+    'DEFAULT_THROTTLE_RATES': {
+        'start_process': '1100/minute',
+        'current_step': '3500/minute',
+        'submit_step': '3500/minute',
+
+        'user': '1000/minute',
+        'anon': '600/minute',
+    },
 }
 
 #Celery Redis
@@ -175,6 +193,13 @@ USE_TZ = True
 
 STATIC_URL = "static/"
 
+
+SIMPLE_JWT = {
+    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
+    "ROTATE_REFRESH_TOKENS": True,
+    "BLACKLIST_AFTER_ROTATION": True
+}
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.2/ref/settings/#default-auto-field
 
@@ -190,12 +215,7 @@ CACHES = {
     }
 }
 
-SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(days=1),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=7),
-    "ROTATE_REFRESH_TOKENS": True,  
-    "BLACKLIST_AFTER_ROTATION": True
-}
+CACHE_TTL = 60 * 5
 
 EMAIL_BACKEND = env("EMAIL_BACKEND")
 EMAIL_HOST = env("EMAIL_HOST", default="localhost")
@@ -204,3 +224,19 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
+CELERY_BEAT_SCHEDULE = {
+    'weekly_report': {
+        'task': 'reports.tasks.send_periodic_report',
+        'schedule': crontab(hour=9, minute=0, day_of_week=1),
+    },
+    'monthly_report': {
+        'task': 'reports.tasks.send_periodic_report',
+        'schedule': crontab(hour=9, minute=0, day_of_month=1),
+    },
+    'purge-expired-guest-instances-every-15m': {
+        'task': 'apps.processes.tasks.purge_expired_guest_instances',
+        'schedule': 15 * 60,  # هر ۱۵ دقیقه یک بار
+    },
+}
+
+ASGI_APPLICATION = 'config.asgi.application'

@@ -1,29 +1,43 @@
 from django.contrib.auth.models import User
 from django.db import models
 
-
-class NonDeletedObjects(models.Manager):
-    def get_queryset(self):
-        return super().get_queryset().filter(is_deleted=False)
-
-
 class Form(models.Model):
+    PUBLIC = 'public'
+    PRIVATE = 'private'
+    ACCESS_CHOICES = [
+        (PUBLIC, 'Public'),
+        (PRIVATE, 'Private (password)'),
+    ]
+
+    access = models.CharField(max_length=10, choices=ACCESS_CHOICES, default=PUBLIC)
+    password = models.CharField(max_length=64, blank=True)
     name = models.CharField(max_length=255)
     description = models.TextField(blank=True, null=True)
-    is_public = models.BooleanField(default=True)
-    is_open = models.BooleanField(default=False)
     created_by = models.ForeignKey(User, on_delete=models.CASCADE)
     created_at = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField(max_length=8, unique=True)
-    # Fields about deleting the object
-    is_deleted = models.BooleanField(default=False)
-    deleted_at = models.DateTimeField(blank=True, null=True)
-    objects = NonDeletedObjects()
-    all_objects = models.Manager()
+    views_count = models.PositiveIntegerField(default=0)
+
+    def clean(self):
+        from django.core.exceptions import ValidationError
+        if self.access == self.PRIVATE and not self.password.strip():
+            raise ValidationError({'password': 'Password required for private forms.'})
+
+    def save(self, *args, **kwargs):
+        import secrets
+        if not self.slug:
+            self.slug = secrets.token_urlsafe(6)[:8]
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.name
 
+    class Meta:
+        ordering = ['-created_at']
+        indexes = [
+            models.Index(fields=['access']),
+            models.Index(fields=['slug']),
+        ]
 
 class Field(models.Model):
     FIELD_TYPES = [
@@ -47,17 +61,19 @@ class Field(models.Model):
     def __str__(self):
         return f"{self.question} ({self.field_type})"
 
+    class Meta:
+        unique_together = ('form', 'position')
+        ordering = ['position']
 
 class Response(models.Model):
-    form = models.ForeignKey(Form, on_delete=models.CASCADE)
-    user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
+    form = models.ForeignKey(Form, on_delete=models.CASCADE, related_name='responses')
+    user = models.ForeignKey(User, on_delete=models.SET_NULL, null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)
-
 
 class Answer(models.Model):
     response = models.ForeignKey(Response, related_name='answers', on_delete=models.CASCADE)
     field = models.ForeignKey(Field, on_delete=models.CASCADE)
     value = models.TextField()
 
-
-
+    def __str__(self):
+        return f'{self.field.question}: {self.value[:20]}'
