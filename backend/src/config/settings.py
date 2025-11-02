@@ -14,6 +14,7 @@ from pathlib import Path
 from decouple import config
 import environ
 from datetime import timedelta
+from celery.schedules import crontab
 
 from celery.schedules import crontab
 
@@ -50,6 +51,7 @@ INSTALLED_APPS = [
     'rest_framework_simplejwt.token_blacklist',
     'django_filters',
     'rest_framework_swagger',
+    'channels',
     "config.api",
     "apps.users",
     "apps.forms",
@@ -224,6 +226,17 @@ EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
 
 CELERY_BEAT_SCHEDULE = {
+    'weekly_report': {
+        'task': 'reports.tasks.send_periodic_report',
+        'schedule': crontab(hour=9, minute=0, day_of_week=1),
+    },
+    'monthly_report': {
+        'task': 'reports.tasks.send_periodic_report',
+        'schedule': crontab(hour=9, minute=0, day_of_month=1),
+    },
+}
+
+ASGI_APPLICATION = 'config.asgi.application'
     'purge-expired-guest-instances-every-15m': {
         'task': 'apps.processes.tasks.purge_expired_guest_instances',
         'schedule': 45 * 60,
