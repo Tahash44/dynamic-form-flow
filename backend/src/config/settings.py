@@ -16,11 +16,13 @@ import environ
 from datetime import timedelta
 from celery.schedules import crontab
 
+from celery.schedules import crontab
+
 env = environ.Env()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-environ.Env.read_env(os.path.join(BASE_DIR, '.env'))
+environ.Env.read_env(os.path.join(BASE_DIR, '../../.env'))
 
 
 # Quick-start development settings - unsuitable for production
@@ -83,12 +85,12 @@ REST_FRAMEWORK = {
     ],
 
     'DEFAULT_THROTTLE_RATES': {
-        'start_process': '10/minute',
-        'current_step': '35/minute',
-        'submit_step': '35/minute',
+        'start_process': '1100/minute',
+        'current_step': '3500/minute',
+        'submit_step': '3500/minute',
 
-        'user': '100/minute',
-        'anon': '60/minute',
+        'user': '1000/minute',
+        'anon': '600/minute',
     },
 }
 
@@ -235,3 +237,8 @@ CELERY_BEAT_SCHEDULE = {
 }
 
 ASGI_APPLICATION = 'config.asgi.application'
+    'purge-expired-guest-instances-every-15m': {
+        'task': 'apps.processes.tasks.purge_expired_guest_instances',
+        'schedule': 45 * 60,
+    },
+}
