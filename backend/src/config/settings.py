@@ -224,7 +224,6 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS")
 EMAIL_HOST_USER = env("EMAIL_HOST_USER")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL")
-
 CELERY_BEAT_SCHEDULE = {
     'weekly_report': {
         'task': 'reports.tasks.send_periodic_report',
@@ -234,11 +233,10 @@ CELERY_BEAT_SCHEDULE = {
         'task': 'reports.tasks.send_periodic_report',
         'schedule': crontab(hour=9, minute=0, day_of_month=1),
     },
+    'purge-expired-guest-instances-every-15m': {
+        'task': 'apps.processes.tasks.purge_expired_guest_instances',
+        'schedule': 15 * 60,  # هر ۱۵ دقیقه یک بار
+    },
 }
 
 ASGI_APPLICATION = 'config.asgi.application'
-    'purge-expired-guest-instances-every-15m': {
-        'task': 'apps.processes.tasks.purge_expired_guest_instances',
-        'schedule': 45 * 60,
-    },
-}

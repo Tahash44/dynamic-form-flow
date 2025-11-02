@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('forms', '0003_form_views_count'),
+        ('forms', '0001_initial'),
         ('processes', '0002_alter_processinstance_access_token'),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
