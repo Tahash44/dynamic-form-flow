@@ -50,10 +50,11 @@ source venv/bin/activate      # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
-
+```
 ---
-
+   
 ## 👥 Team Members
+
 | Name | Role |
 |------|------|
 | Tahash44 | Team Lead |
@@ -64,3 +65,6 @@ python manage.py runserver
 | Mehrshad3 | Backend Developer |
 
 ---
+
+### © 2025 Team FormFlow — Developed for Quera
+
