@@ -50,3 +50,17 @@ source venv/bin/activate      # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py runserver
+
+---
+
+## 👥 Team Members
+| Name | Role |
+|------|------|
+| Tahash44 | Team Lead |
+| Alikhoshakhlagh | Backend Developer & Testing & Debugging |
+| aliakbari77 | Backend Developer |
+| fathali-codes | Backend Developer |
+| pouryaenayati | Backend Developer |
+| Mehrshad3 | Backend Developer |
+
+---
