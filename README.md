@@ -36,7 +36,6 @@ Each app is structured to ensure modularity and maintainability:
 - `responses/` → Stores and manages user responses  
 - `categories/` → Organizes forms into logical groups  
 - `processes/` → Defines multi-step workflows and execution instances  
-- `utils/` → Shared helpers and configuration tools  
 
 ---
 
@@ -44,8 +43,8 @@ Each app is structured to ensure modularity and maintainability:
 To set up and run the project locally:
 
 ```bash
-git clone https://github.com/yourusername/FormFlow.git
-cd FormFlow
+git clone https://github.com/Tahash44/dynamic-form-flow.git
+cd dynamic-form-flow
 python -m venv venv
 source venv/bin/activate      # or venv\Scripts\activate on Windows
 pip install -r requirements.txt
