@@ -17,7 +17,7 @@ class Form(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     slug = models.SlugField(max_length=8, unique=True)
     views_count = models.PositiveIntegerField(default=0)
-
+    is_deleted = models.BooleanField(default=False)
     def clean(self):
         from django.core.exceptions import ValidationError
         if self.access == self.PRIVATE and not self.password.strip():
@@ -73,7 +73,8 @@ class Response(models.Model):
 class Answer(models.Model):
     response = models.ForeignKey(Response, related_name='answers', on_delete=models.CASCADE)
     field = models.ForeignKey(Field, on_delete=models.CASCADE)
-    value = models.TextField()
+    value = models.JSONField()
+
 
     def __str__(self):
         return f'{self.field.question}: {self.value[:20]}'

@@ -3,7 +3,7 @@ from rest_framework import viewsets
 
 from rest_framework.response import Response
 
-from .models import Form, Field, Response
+from .models import Form, Field, Response as ResponseModel
 from .serializer import FormSerializer, FieldSerializer, ResponseSerializer
 
 
@@ -11,18 +11,24 @@ class FieldViewSet(viewsets.ModelViewSet):
     queryset = Field.objects.all()
     serializer_class = FieldSerializer
 
+    def get_queryset(self):
+        queryset = super().get_queryset()
+        form_id = self.request.query_params.get('form')
+        if form_id:
+            queryset = queryset.filter(form_id=form_id)
+        return queryset
 
 class FormViewSet(viewsets.ModelViewSet):
-    queryset = Form.objects.all()
+    queryset = Form.objects.all().filter(is_deleted=False)
     serializer_class = FormSerializer
 
     def perform_create(self, serializer):
         serializer.save(created_by=self.request.user)
 
     def perform_destroy(self, instance):
-        instance.is_deleted = True
-        instance.deleted_at = timezone.now()
-        instance.save()
+         instance.is_deleted = True
+         instance.deleted_at = timezone.now()
+         instance.save()
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -33,14 +39,14 @@ class FormViewSet(viewsets.ModelViewSet):
 
 
 class ResponseViewSet(viewsets.ModelViewSet):
-    queryset = Response.objects.all()
+    queryset = ResponseModel.objects.all()
     serializer_class = ResponseSerializer
 
     def perform_create(self, serializer):
         serializer.save(user=self.request.user)
 
     def get_queryset(self):
-        queryset = Response.objects.all()
+        queryset = ResponseModel.objects.all()
         form_id = self.request.query_params.get('form')
         if form_id is not None:
             queryset = queryset.filter(form_id=form_id)

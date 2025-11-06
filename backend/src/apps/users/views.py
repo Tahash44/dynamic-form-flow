@@ -92,14 +92,14 @@ class ForgotPasswordView(APIView):
         serializer.is_valid(raise_exception=True)
 
         email = serializer.validated_data["email"]
-
+        username = serializer.validated_data["username"]
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(username=username)
         except User.DoesNotExist:
-            return Response({"error": "No account found with this email."}, status=404)
+            return Response({"error": "No account found with this username."}, status=404)
 
         otp = random.randint(100000, 999999)
-        cache.set(f"reset_otp_{email}", otp, timeout=300)  # 5 minutes
+        cache.set(f"reset_otp_{username}", otp, timeout=300)  # 5 minutes
 
         send_mail(
             subject="Password Reset OTP",
@@ -120,10 +120,10 @@ class VerifyResetOTPView(APIView):
         serializer = VerifyResetOTPSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data["email"]
+        username = serializer.validated_data["username"]
         otp = serializer.validated_data["otp"]
 
-        cached_otp = cache.get(f"reset_otp_{email}")
+        cached_otp = cache.get(f"reset_otp_{username}")
         if not cached_otp:
             return Response({"error": "OTP expired or invalid."}, status=400)
 
@@ -142,11 +142,11 @@ class ResetPasswordView(APIView):
         serializer = ResetPasswordSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        email = serializer.validated_data["email"]
+        username = serializer.validated_data["username"]
         otp = serializer.validated_data["otp"]
         new_password = serializer.validated_data["new_password"]
 
-        cached_otp = cache.get(f"reset_otp_{email}")
+        cached_otp = cache.get(f"reset_otp_{username}")
         if not cached_otp:
             return Response({"error": "OTP expired or invalid."}, status=400)
 
@@ -154,14 +154,14 @@ class ResetPasswordView(APIView):
             return Response({"error": "Incorrect OTP."}, status=400)
 
         try:
-            user = User.objects.get(email=email)
+            user = User.objects.get(username=username)
         except User.DoesNotExist:
             return Response({"error": "User not found."}, status=404)
 
         user.set_password(new_password)
         user.save()
 
-        cache.delete(f"reset_otp_{email}")
+        cache.delete(f"reset_otp_{username}")
 
         return Response({"message": "Password reset successful."}, status=200)
 

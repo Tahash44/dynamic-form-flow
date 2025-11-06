@@ -129,6 +129,7 @@ class ProcessWriteSerializer(serializers.ModelSerializer):
         return instance
 
 
+
 class ProcessStepWriteSerializer(serializers.ModelSerializer):
     class Meta:
         model = ProcessStep
@@ -136,6 +137,18 @@ class ProcessStepWriteSerializer(serializers.ModelSerializer):
 
     def _get_process(self):
         return self.context.get('process') or getattr(self.instance, 'process', None)
+
+    def create(self, validated_data):
+        process = self._get_process()  # از context بگیر
+
+        # حذف احتمالی process از validated_data تا دوبار پاس داده نشه
+        validated_data.pop('process', None)
+
+        if process.type == Process.FREE_FLOW and 'order' not in validated_data:
+            max_order = process.steps.aggregate(m=Max('order'))['m'] or 0
+            validated_data['order'] = max_order + 1
+
+        return ProcessStep.objects.create(process=process, **validated_data)
 
     def validate(self, attrs):
         process = self._get_process()
@@ -154,14 +167,6 @@ class ProcessStepWriteSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({'order': 'Order must be ≥ 1.'})
 
         return attrs
-
-    def create(self, validated_data):
-        process = self._get_process()
-        if process.type == Process.FREE_FLOW and 'order' not in validated_data:
-            max_order = process.steps.aggregate(m=Max('order'))['m'] or 0
-            validated_data['order'] = max_order + 1
-
-        return ProcessStep.objects.create(process=process, **validated_data)
 
     def update(self, instance, validated_data):
         return super().update(instance, validated_data)

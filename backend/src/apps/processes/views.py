@@ -278,21 +278,20 @@ class ProcessRUDView(RetrieveUpdateDestroyAPIView):
 
     def get_serializer_class(self):
         return ProcessWriteSerializer if self.request.method in ('PUT', 'PATCH') else ProcessSerializer
-
-
 class StepListCreateView(ListCreateAPIView):
     permission_classes = [IsAuthenticated, IsOwnerOrReadOnly]
+    serializer_class = ProcessStepWriteSerializer
 
     def get_queryset(self):
         return ProcessStep.objects.filter(process_id=self.kwargs['process_id']).select_related('process')
 
-    def get_serializer_class(self):
-        return ProcessStepWriteSerializer if self.request.method == 'POST' else ProcessStepSerializer
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        # process رو اینجا اضافه کن
+        context['process'] = Process.objects.get(pk=self.kwargs['process_id'])
+        return context
 
-    def perform_create(self, serializer):
-        process = Process.objects.get(pk=self.kwargs['process_id'], type=Process.SEQUENTIAL)
-        self.check_object_permissions(self.request, process)
-        serializer.save(process=process)
+
 
 
 class StepRUDView(RetrieveUpdateDestroyAPIView):
